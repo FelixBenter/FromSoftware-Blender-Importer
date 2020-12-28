@@ -272,10 +272,6 @@ class VertexBufferStructMember:
         if self.data_type == self.DataType.BONE_WEIGHTS:
             weights = struct.unpack_from("HHHH", buf, offset)
             return tuple(weight / 32767.0 for weight in weights)
-        #raise Exception(
-        #    f"vertex data type not yet implemented: {self.data_type.name} for "
-        #    + f"attribute {self.attribute_type.name} " +
-        #    str(list(hex(c) for c in buf[offset:offset + self.size()])))
 
 
 class Texture:
