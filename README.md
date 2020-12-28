@@ -7,4 +7,4 @@ A Blender plugin for importing Fromsoft DCX files. Code based heavily from the [
 ## To Do:
 * Texture & UV Support
 * Rigging Support
-* DS2 & Sekiro Support
+* Sekiro Support

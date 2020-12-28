@@ -33,7 +33,7 @@ import bpy
 import os
 import sys
 from bpy_extras.io_utils import ImportHelper
-from bpy.props import StringProperty, BoolProperty
+from bpy.props import StringProperty, CollectionProperty, BoolProperty
 
 class DcxImporter(bpy.types.Operator, ImportHelper):
     bl_idname = "import_scene.dcx"
@@ -44,9 +44,17 @@ class DcxImporter(bpy.types.Operator, ImportHelper):
 
     get_textures = BoolProperty(name = "Import Textures (Not implemented yet)", default = False)
     unwrap_mesh = BoolProperty(name = "Unwrap UVs (Very slow on large models)", default = False)
+
+    files: CollectionProperty(
+            type=bpy.types.OperatorFileListElement,
+            options={'HIDDEN', 'SKIP_SAVE'},
+        )
+
+    directory = StringProperty(subtype='DIR_PATH')
     
     def execute(self, context):
-        run(self.filepath, self.get_textures, self.unwrap_mesh)
+        for file in self.files:
+            run(self.directory + file.name, self.get_textures, self.unwrap_mesh)
         return {"FINISHED"}
     
 def menu_import(self, context):
