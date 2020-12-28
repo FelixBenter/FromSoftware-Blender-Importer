@@ -28,7 +28,6 @@ if "bpy" in locals():
 else:
     from .importer import run
 
-
 import bpy
 import gc
 from bpy_extras.io_utils import ImportHelper
@@ -54,7 +53,7 @@ class DcxImporter(bpy.types.Operator, ImportHelper):
     def execute(self, context):
         for file in self.files:
             run(self.directory + file.name, self.get_textures, self.unwrap_mesh)
-            gc.collect()
+            gc.collect() # Probably not necessary, but just in case Blender keeps the plugin running for whatever reason
         return {"FINISHED"}
     
 def menu_import(self, context):

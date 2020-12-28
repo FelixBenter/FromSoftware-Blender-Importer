@@ -8,7 +8,9 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class DCX:
-
+    """
+    Wrapper for a single compressed file.
+    """
 
     # NOTE: completely big-endian.
     HEADER_STRUCT = BinaryStruct(

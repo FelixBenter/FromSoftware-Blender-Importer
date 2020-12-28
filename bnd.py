@@ -134,15 +134,6 @@ class BaseBND:
         elif bnd_source is not None:
             self.unpack(bnd_source)
 
-    def unpack(self, bnd_buffer):
-        raise NotImplementedError
-
-    def pack(self):
-        raise NotImplementedError
-
-    def load_unpacked_dir(self, directory):
-        raise NotImplementedError
-
     def add_entries_from_manifest_paths(self, file_buffer, directory):
         directory = Path(directory)
         current_directory = None
@@ -249,10 +240,6 @@ class BaseBND:
         """Remove all entries from the BND."""
         self._entries = []
         self.binary_entries = []
-
-    @property
-    def bnd_manifest_header(self):
-        raise NotImplementedError
 
     @property
     def entries(self):
@@ -392,6 +379,9 @@ class BaseBND:
 
 
 class BND3(BaseBND):
+    """
+    File container used before DS2
+    """
 
     HEADER_STRUCT_START = (
         ("bnd_version", "4s", b"BND3"),
@@ -551,6 +541,9 @@ class BND3(BaseBND):
 
 
 class BND4(BaseBND):
+    """
+    File container used since DS2
+    """
 
     HEADER_STRUCT_START = (
         ("bnd_version", "4s", b"BND4"),
