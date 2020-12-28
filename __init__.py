@@ -30,8 +30,7 @@ else:
 
 
 import bpy
-import os
-import sys
+import gc
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty, CollectionProperty, BoolProperty
 
@@ -55,6 +54,7 @@ class DcxImporter(bpy.types.Operator, ImportHelper):
     def execute(self, context):
         for file in self.files:
             run(self.directory + file.name, self.get_textures, self.unwrap_mesh)
+            gc.collect()
         return {"FINISHED"}
     
 def menu_import(self, context):
