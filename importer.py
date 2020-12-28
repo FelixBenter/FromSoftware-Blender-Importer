@@ -10,59 +10,92 @@ import ntpath
 from bpy.app.translations import pgettext
 from mathutils import Matrix, Vector
 from mathutils.noise import random
+from enum import Enum
+
+
+class Mode(Enum):
+    CHR = 1 # Must be unpacked from dcx and a rig applied
+    DS2_CHR = 2 # Already unpacked from dcx, rig must be applied
+    DS1_MAP = 3 # Must be unpacked from dcx, no rig
+    DS2_MAP = 3
+    DS3_MAP = 4 # Must be unpacked from dcx, no rig
+
+
 
 def run(path, get_textures, unwrap_mesh):
 
         name = os.path.basename(path)
 
-        if name.endswith(".chrbnd.dcx"): # Character
+        if name.endswith(".chrbnd.dcx"): # DS1 & 3 Character files
             name = name[:-11]
-            import_mesh(path, name, get_textures, unwrap_mesh, True, False)
-            return
-        elif name.endswith(".mapbnd.dcx"): # Map
+            game_mode = Mode.CHR
+        elif name.endswith(".mapbnd.dcx"): # DS3 Map
             name = name[:-11]
-            import_mesh(path, name, get_textures, unwrap_mesh, True, False)
-            return
+            game_mode = Mode.DS3_MAP
+        elif name.endswith(".flver.dcx"): # DS1 Map
+            name = name[:-10]
+            game_mode = Mode.DS1_MAP
         elif name.endswith(".bnd"): # DS2 Character files
             name = name[:-4]
-            import_mesh(path, name, get_textures, unwrap_mesh, False, False)
-            return
+            game_mode = Mode.DS2_CHR
+        elif name.endswith(".envbnd.dcx"): # DS2 Map files
+            name = name[:-11]
+            game_mode = Mode.DS2_MAP
         else:
             raise TypeError("Unsupported DCX type")
+        
+        import_mesh(path, name, get_textures, unwrap_mesh, game_mode)
 
 
-def import_mesh(path, name, get_textures, unwrap_mesh, unpack_dcx, import_rig):
+def import_mesh(path, name, get_textures, unwrap_mesh, game_mode):
     with tempfile.TemporaryDirectory() as tmpdirname:
-        if unpack_dcx:
-            # Unpacking DCX to get DCX.data
+        if game_mode == Mode.CHR:
+            # Data is in .dcx form
             DCXFile = DCX(path, None)
-
-            # Unpacking BND
             magic = DCXFile.data[:4]
             map(ord, magic)
             magic = magic.decode("utf-8")
-            if (magic == 'BND4'):
-                BNDFile = BND4(DCXFile.data)
+            if (magic == 'BND4'):             # CHR game_mode can be from DS1 or DS3, 
+                BNDFile = BND4(DCXFile.data)  # so have to check which BND version.
             elif (magic == 'BND3'):
                 BNDFile = BND3(DCXFile.data)
             else:
                 raise Exception("File must be in BND4 or BND3 format")
-        else:
-            BNDFile = BND4(path)
-        
-        BNDFile.write_unpacked_dir(tmpdirname)
-
-        # Creating Mesh with from FLVER file
-        if unpack_dcx:
+            BNDFile.write_unpacked_dir(tmpdirname)
             flver_path = tmpdirname + "\\.unpacked\\" + name + ".flver"
-        else:
+
+        elif game_mode == Mode.DS3_MAP:
+            DCXFile = DCX(path, None)
+            BNDFile = BND4(DCXFile.data)
+            BNDFile.write_unpacked_dir(tmpdirname)
+            flver_path = tmpdirname + "\\.unpacked\\" + name + ".flver"
+        
+        elif game_mode == Mode.DS1_MAP:
+            DCXFile = DCX(path, None)
+            DCXFile.write_unpacked(tmpdirname + name + ".flver")
+            flver_path = tmpdirname + name + ".flver"
+
+        elif game_mode == Mode.DS2_CHR:
+            BNDFile = BND4(path)
+            BNDFile.write_unpacked_dir(tmpdirname)
             flver_path = tmpdirname + "\\" + name + ".bnd.unpacked\\" + name + ".flv"
+        
+        elif game_mode == Mode.DS2_MAP:
+            DCXFile = DCX(path, None)
+            BNDFile = BND4(DCXFile.data)
+            BNDFile.write_unpacked_dir(tmpdirname)
+            flver_path = tmpdirname + ".unpacked\\" + name + ".flver"
+            
+        else:
+            raise Exception("Unsupported game/file type")
+
+        import_rig = False # Replace with proper usage once rigging is fixed
 
         flver_data = read_flver(flver_path)
-        inflated_meshes = flver_data.inflate()
+    inflated_meshes = flver_data.inflate()
 
-        collection = bpy.data.collections.new(name)
-        bpy.context.scene.collection.children.link(collection)
+    collection = bpy.data.collections.new(name)
+    bpy.context.scene.collection.children.link(collection)
     
     # Create armature
     if import_rig:
@@ -92,17 +125,17 @@ def import_mesh(path, name, get_textures, unwrap_mesh, unpack_dcx, import_rig):
         mesh = bpy.data.meshes.new(name=mesh_name)
         mesh.from_pydata(verts, [], inflated_mesh.faces)
 
-        # Create object
+        # Create object and append it to the current collection
         obj = bpy.data.objects.new(mesh_name, mesh)
         collection.objects.link(obj)
 
-        # Assign armature
+        # Assign armature to object
         if import_rig:
             obj.modifiers.new(type="ARMATURE",
                               name=pgettext("Armature")).object = armature
             obj.parent = armature
 
-        # Assign material
+        # Assign materials to object
         obj.data.materials.append(materials[flver_mesh.material_index])
 
         # Create vertex groups for bones
