@@ -8,8 +8,8 @@ bl_info = {
     "location": "File > Import",
     "warning": "",
     "support": "COMMUNITY",
-    "wiki_url": "",
-    "tracker_url": "",
+    "wiki_url": "https://github.com/FelixBenter/DCX-Blender",
+    "tracker_url": "https://github.com/FelixBenter/DCX-Blender/issues",
 }
 
 _submodules = {
@@ -17,7 +17,6 @@ _submodules = {
     "bnd",
     "dcx",
     "utils",
-    "magic",
 }
 
 if "bpy" in locals():
@@ -38,7 +37,7 @@ class DcxImporter(bpy.types.Operator, ImportHelper):
     bl_label = "Compressed Fromsoft (.dcx, .bnd)"
     bl_options = {"REGISTER", "UNDO"}
 
-    filter_glob = StringProperty(default="*.dcx;*.bnd", options = {"HIDDEN"})
+    filter_glob = StringProperty(default="*.flver.dcx;*.mapbnd.dcx;*.chrbnd.dcx;*.bnd", options = {"HIDDEN"})
 
     get_textures = BoolProperty(name = "Import Textures (Not implemented yet)", default = False)
     unwrap_mesh = BoolProperty(name = "Unwrap UVs (Very slow on large models)", default = False)
@@ -52,7 +51,7 @@ class DcxImporter(bpy.types.Operator, ImportHelper):
     
     def execute(self, context):
         for file in self.files:
-            run(self.directory + file.name, self.get_textures, self.unwrap_mesh)
+            run(self.directory, file.name, self.get_textures, self.unwrap_mesh)
             gc.collect() # Probably not necessary, but just in case Blender keeps the plugin running for whatever reason
         return {"FINISHED"}
     

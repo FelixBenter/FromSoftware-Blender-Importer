@@ -1,10 +1,12 @@
-import os
+from os import listdir 
+from os.path import isfile, join
 import bpy
 import bmesh
 from .dcx import DCX
 from .bnd import BND3, BND4
 from .flver_utils import read_flver
 from .flver import Flver
+from .tpf import TPF
 import tempfile
 import ntpath
 from bpy.app.translations import pgettext
@@ -17,14 +19,13 @@ class Mode(Enum):
     CHR = 1 # Must be unpacked from dcx and a rig applied
     DS2_CHR = 2 # Already unpacked from dcx, rig must be applied
     DS1_MAP = 3 # Must be unpacked from dcx, no rig
-    DS2_MAP = 3
     DS3_MAP = 4 # Must be unpacked from dcx, no rig
 
 
 
-def run(path, get_textures, unwrap_mesh):
-
-        name = os.path.basename(path)
+def run(path, name, get_textures, unwrap_mesh):
+        
+        print("Importing {} from {}.".format(name, str(path)))
 
         if name.endswith(".chrbnd.dcx"): # DS1 & 3 Character files
             name = name[:-11]
@@ -38,9 +39,6 @@ def run(path, get_textures, unwrap_mesh):
         elif name.endswith(".bnd"): # DS2 Character files
             name = name[:-4]
             game_mode = Mode.DS2_CHR
-        elif name.endswith(".envbnd.dcx"): # DS2 Map files
-            name = name[:-11]
-            game_mode = Mode.DS2_MAP
         else:
             raise TypeError("Unsupported DCX type")
         
@@ -48,10 +46,10 @@ def run(path, get_textures, unwrap_mesh):
 
 
 def import_mesh(path, name, get_textures, unwrap_mesh, game_mode):
-    with tempfile.TemporaryDirectory() as tmpdirname:
+    with tempfile.TemporaryDirectory("DCXBlender") as tmpdirname:
+
         if game_mode == Mode.CHR:
-            # Data is in .dcx form
-            DCXFile = DCX(path, None)
+            DCXFile = DCX(path + name + ".chrbnd.dcx", None)
             magic = DCXFile.data[:4]
             map(ord, magic)
             magic = magic.decode("utf-8")
@@ -63,20 +61,22 @@ def import_mesh(path, name, get_textures, unwrap_mesh, game_mode):
                 raise Exception("File must be in BND4 or BND3 format")
             BNDFile.write_unpacked_dir(tmpdirname)
             flver_path = tmpdirname + "\\.unpacked\\" + name + ".flver"
+            if get_textures:
+                texture_path = import_textures(path, name, tmpdirname)
 
         elif game_mode == Mode.DS3_MAP:
-            DCXFile = DCX(path, None)
+            DCXFile = DCX(path + name + ".mapbnd.dcx", None)
             BNDFile = BND4(DCXFile.data)
             BNDFile.write_unpacked_dir(tmpdirname)
             flver_path = tmpdirname + "\\.unpacked\\" + name + ".flver"
         
         elif game_mode == Mode.DS1_MAP:
-            DCXFile = DCX(path, None)
+            DCXFile = DCX(path + name + ".flver.dcx", None)
             DCXFile.write_unpacked(tmpdirname + name + ".flver")
             flver_path = tmpdirname + name + ".flver"
 
         elif game_mode == Mode.DS2_CHR:
-            BNDFile = BND4(path)
+            BNDFile = BND4(path + name + ".bnd")
             BNDFile.write_unpacked_dir(tmpdirname)
             flver_path = tmpdirname + "\\" + name + ".bnd.unpacked\\" + name + ".flv"
         
@@ -109,6 +109,18 @@ def import_mesh(path, name, get_textures, unwrap_mesh, game_mode):
         bsdf = material.node_tree.nodes.get("Principled BSDF")
         material.diffuse_color = (random(), random(), random(), 1.0) # Viewport display colour
         materials.append(material)
+
+    # Create material for holding textures
+    # (Eventually will correctly assign textures to their associated material)
+    if get_textures:
+        tex_material = bpy.data.materials.new("Textures")
+        tex_material.use_nodes = True
+        files = [f for f in listdir(texture_path) if isfile(join(texture_path, f))]
+        for file in files:                                                          
+            texture_node = tex_material.node_tree.nodes.new("ShaderNodeTexImage")   
+            texture_node.image = bpy.data.images.load(texture_path + file)          
+
+        materials.append(tex_material)
 
     for index, (flver_mesh, inflated_mesh) in enumerate(
             zip(flver_data.meshes, inflated_meshes)):
@@ -243,5 +255,22 @@ def create_armature(name, collection, flver_data):
 
     bpy.ops.object.editmode_toggle() 
     return armature
+
+def import_textures(path, name, tmpdirname):
+    """
+    Unpacks the specified tpf file into dds textures
+    and returns the directiry where unpacked.
+    """
+    DCXFile = DCX(path + name + ".texbnd.dcx", None)
+    BNDFile = BND4(DCXFile.data) 
+    BNDFile.write_unpacked_dir(tmpdirname)
+    tpf_path = tmpdirname + "\\.unpacked\\" + name + ".tpf"
+    TPFFile = TPF(tpf_path)
+    print("Importing TPF file from " + str(tpf_path))
+    TPFFile.unpack()
+    TPFFile.save_textures_to_file()
+    return TPFFile.file_path + "_textures\\"
+    
+    
 
         
