@@ -46,7 +46,9 @@ def run(path, name, get_textures, unwrap_mesh):
 
 
 def import_mesh(path, name, get_textures, unwrap_mesh, game_mode):
-    with tempfile.TemporaryDirectory("DCXBlender") as tmpdirname:
+    with tempfile.TemporaryDirectory() as tmpdirname:
+
+        
 
         if game_mode == Mode.CHR:
             DCXFile = DCX(path + name + ".chrbnd.dcx", None)
@@ -63,6 +65,12 @@ def import_mesh(path, name, get_textures, unwrap_mesh, game_mode):
             flver_path = tmpdirname + "\\.unpacked\\" + name + ".flver"
             if get_textures:
                 texture_path = import_textures(path, name, tmpdirname)
+                tex_material = bpy.data.materials.new("Textures")
+                tex_material.use_nodes = True
+                files = [f for f in listdir(texture_path) if isfile(join(texture_path, f))]
+                for file in files:                                                          
+                    texture_node = tex_material.node_tree.nodes.new("ShaderNodeTexImage")   
+                    texture_node.image = bpy.data.images.load(texture_path + file)   
 
         elif game_mode == Mode.DS3_MAP:
             DCXFile = DCX(path + name + ".mapbnd.dcx", None)
@@ -91,6 +99,8 @@ def import_mesh(path, name, get_textures, unwrap_mesh, game_mode):
 
         import_rig = False # Replace with proper usage once rigging is fixed
 
+        
+
         flver_data = read_flver(flver_path)
     inflated_meshes = flver_data.inflate()
 
@@ -113,13 +123,6 @@ def import_mesh(path, name, get_textures, unwrap_mesh, game_mode):
     # Create material for holding textures
     # (Eventually will correctly assign textures to their associated material)
     if get_textures:
-        tex_material = bpy.data.materials.new("Textures")
-        tex_material.use_nodes = True
-        files = [f for f in listdir(texture_path) if isfile(join(texture_path, f))]
-        for file in files:                                                          
-            texture_node = tex_material.node_tree.nodes.new("ShaderNodeTexImage")   
-            texture_node.image = bpy.data.images.load(texture_path + file)          
-
         materials.append(tex_material)
 
     for index, (flver_mesh, inflated_mesh) in enumerate(
