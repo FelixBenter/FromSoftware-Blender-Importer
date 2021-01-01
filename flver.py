@@ -331,10 +331,6 @@ class Flver:
         if len(index_buffers) == 0:
             return None
         assert len(index_buffers) == 1
-        if index_buffers[
-                0].backface_visibility == IndexBuffer.BackfaceVisibility.SHOW:
-            print("visible backfaces: " +
-                  self.materials[mesh.material_index].name)
         index_buffers[0]._inflate(result.faces)
 
         # Parse vertex buffer attributes
