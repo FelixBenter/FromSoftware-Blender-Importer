@@ -5,7 +5,7 @@ A Blender plugin for importing Fromsoft DCX files. Code based heavily from the [
 ![](https://i.redd.it/rshisri0rg961.gif)
 
 ## Usage:
-* Set the path to unpack files to in the addon configuration.
+* Set a path for the addon to unpack the dcx files to (Preferably an empty folder).
 * File -> Import -> Compressed Fromsoftware
 * Some materials may need to be appended to their respective mesh if not automatically done so.
 
