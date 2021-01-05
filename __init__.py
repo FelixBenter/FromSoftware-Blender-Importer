@@ -32,26 +32,33 @@ import gc
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty, CollectionProperty, BoolProperty
 
+class unpackPathPreference(bpy.types.AddonPreferences):
+    bl_idname = __name__
+
+    unpack_path = StringProperty(default = "//", description = "The path that textures & models will be unpacked to")
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text = "Set unpack path")
+        layout.prop(self, "unpack_path")
+
 class DcxImporter(bpy.types.Operator, ImportHelper):
     bl_idname = "import_scene.dcx"
     bl_label = "Compressed Fromsoft (.dcx, .bnd)"
     bl_options = {"REGISTER", "UNDO"}
 
     filter_glob = StringProperty(default="*.flver.dcx;*.mapbnd.dcx;*.chrbnd.dcx;*.bnd", options = {"HIDDEN"})
-
-    get_textures = BoolProperty(name = "Import Textures (Not implemented yet)", default = False)
-    unwrap_mesh = BoolProperty(name = "Unwrap UVs (Very slow on large models)", default = False)
-
-    files: CollectionProperty(
-            type=bpy.types.OperatorFileListElement,
-            options={'HIDDEN', 'SKIP_SAVE'},
-        )
-
+    get_textures = BoolProperty(name = "Import Textures (Only DS3)", default = False)
+    unwrap_mesh = BoolProperty(name = "Unwrap UVs", default = False)
+    files = CollectionProperty(type=bpy.types.OperatorFileListElement, options={'HIDDEN', 'SKIP_SAVE'})
     directory = StringProperty(subtype='DIR_PATH')
-    
+
     def execute(self, context):
+
+        unpack_path = context.preferences.addons[__name__].preferences.unpack_path
+
         for file in self.files:
-            run(self.directory, file.name, self.get_textures, self.unwrap_mesh)
+            run(unpack_path, self.directory, file.name, self.get_textures, self.unwrap_mesh)
             gc.collect() # Probably not necessary, but just in case Blender keeps the plugin running for whatever reason
         return {"FINISHED"}
     
@@ -61,7 +68,9 @@ def menu_import(self, context):
 def register():
     bpy.utils.register_class(DcxImporter)
     bpy.types.TOPBAR_MT_file_import.append(menu_import)
+    bpy.utils.register_class(unpackPathPreference)
 
 def unregister():
     bpy.types.TOPBAR_MT_file_import.remove(menu_import)
     bpy.utils.unregister_class(DcxImporter)
+    bpy.utils.register_class(unpackPathPreference)
