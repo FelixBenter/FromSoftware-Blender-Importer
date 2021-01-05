@@ -164,13 +164,14 @@ class VertexBuffer:
             vertices.bone_weights,
             VertexBufferStructMember.AttributeType.BONE_INDICES:
             vertices.bone_indices,
-            VertexBufferStructMember.AttributeType.UV: vertices.uv,
+            VertexBufferStructMember.AttributeType.UV: 
+            vertices.uv,
         }
         for member in struct_members:
             for i in range(self.vertex_count):
-                data = member._unpack(self.buffer_data, i * self.struct_size,
-                                      version)
+                data = member._unpack(self.buffer_data, i * self.struct_size, version) 
                 attribute_map[member.attribute_type].append(data)
+
 
 
 class VertexBufferStructMember:
@@ -258,15 +259,16 @@ class VertexBufferStructMember:
         else:
             uv_divisor = 1024.0
         offset += self.struct_offset
+        # UV pairs used in DS3, UV used in DS1
+        if (self.data_type == self.DataType.UV) | (self.data_type == self.DataType.UV_PAIR): 
+            uv = struct.unpack_from("hh", buf, offset)
+            return tuple(component / uv_divisor for component in uv)
         if self.data_type == self.DataType.FLOAT2:
             return tuple(struct.unpack_from("ff", buf, offset))
         if self.data_type == self.DataType.FLOAT3:
             return tuple(struct.unpack_from("fff", buf, offset))
         if self.data_type == self.DataType.FLOAT4:
             return tuple(struct.unpack_from("ffff", buf, offset))
-        if self.data_type == self.DataType.UV:
-            uv = struct.unpack_from("hh", buf, offset)
-            return tuple(component / uv_divisor for component in uv)
         if self.data_type == self.DataType.BONE_INDICES:
             return tuple(struct.unpack_from("BBBB", buf, offset))
         if self.data_type == self.DataType.BONE_WEIGHTS:
