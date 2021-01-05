@@ -7,7 +7,9 @@ A Blender plugin for importing Fromsoft DCX files. Code based heavily from the [
 ## Usage:
 * Set the path to unpack files to in the addon configuration.
 * File -> Import -> Compressed Fromsoftware
+* Some materials may need to be appended to their respective mesh if not automatically done so.
 
 ## To Do:
 * Rigging Support
 * Sekiro Support
+* DS1 & DS2 texture support
