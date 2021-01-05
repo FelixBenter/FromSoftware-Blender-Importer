@@ -66,7 +66,8 @@ class TPF:
 
     def save_textures_to_file(self):
         print("Writing {} textures to {}".format(len(self.textures), self.file_path + "_textures\\"))
-        os.mkdir(self.file_path + "_textures\\")
+        if not os.path.exists(self.file_path + "_textures\\"):
+            os.mkdir(self.file_path + "_textures\\")
 
         for i in range(len(self.textures)):
             with open(self.file_path + "_textures\\" + self.filenames[i].rstrip() + ".dds", "wb") as file:

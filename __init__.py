@@ -2,7 +2,7 @@ bl_info = {
     "name": "Import DCX model files",
     "description": "Import models from FROMSOFT games",
     "author": "Felix Benter",
-    "version": (0, 0, 1),
+    "version": (0, 0, 2),
     "blender": (2, 90, 1),
     "category": "Import-Export",
     "location": "File > Import",
