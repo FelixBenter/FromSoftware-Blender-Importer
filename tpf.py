@@ -64,13 +64,13 @@ class TPF:
     
                 self.textures.append(result)
 
-    def save_textures_to_file(self):
-        print("Writing {} textures to {}".format(len(self.textures), self.file_path + "_textures\\"))
-        if not os.path.exists(self.file_path + "_textures\\"):
-            os.mkdir(self.file_path + "_textures\\")
+    def save_textures_to_file(self, file_path):
+        print("Writing {} textures to {}".format(len(self.textures), file_path + "_textures\\"))
+        if not os.path.exists(file_path + "_textures\\"):
+            os.mkdir(file_path + "_textures\\")
 
         for i in range(len(self.textures)):
-            with open(self.file_path + "_textures\\" + self.filenames[i].rstrip() + ".dds", "wb") as file:
+            with open(file_path + "_textures\\" + self.filenames[i].rstrip() + ".dds", "wb") as file:
                 file.write(self.textures[i])
 
     def read_double_null_terminated_string(self):
@@ -102,11 +102,17 @@ def unpack_all(tpf_path):
         tpf.save_textures_to_file()
 
 def convert_to_png(tpf_path):
+    """
+    Invokes the DirectXTex texture converter executable to convert dds files
+    in the directory to png files, then deletes the old dds file.
+    """
     dds_files = [f for f in os.listdir(tpf_path) if isfile(join(tpf_path, f))]
     for dds_file in dds_files:
         sys_path = os.path.dirname(os.path.realpath(__file__))
-        command = "{}\\texconv.exe {} -ft png -o {}".format(sys_path, tpf_path + dds_file, tpf_path)
-        subprocess.run(command, shell = False)
+        command = "{}\\texconv.exe {} -ft png -o {} -y".format(sys_path, tpf_path + dds_file, tpf_path)
+        # I haven't been able to find a way to convert the dds files that DS3 uses from within python,
+        # So currently this is the most consistent method, as texconv covers many versions of dds files.
+        subprocess.run(command, shell = False, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         os.remove(tpf_path + dds_file)  
 
 def int32(data):
@@ -114,7 +120,7 @@ def int32(data):
 
 
 if __name__ == "__main__":
-    tpf_path = "E:\\Projects\\test\\c1290.tpf"
+    tpf_path = "E:\\Projects\\test\\c6210.tpf"
     tpf = TPF(tpf_path)
     tpf.unpack()
     tpf.save_textures_to_file()

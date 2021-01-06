@@ -169,7 +169,7 @@ class VertexBuffer:
         }
         for member in struct_members:
             for i in range(self.vertex_count):
-                data = member._unpack(self.buffer_data, i * self.struct_size, version) 
+                data = member._unpack(self.buffer_data, i * self.struct_size, version)
                 attribute_map[member.attribute_type].append(data)
 
 
@@ -271,7 +271,7 @@ class VertexBufferStructMember:
             return tuple(struct.unpack_from("ffff", buf, offset))
         if self.data_type == self.DataType.BONE_INDICES:
             return tuple(struct.unpack_from("BBBB", buf, offset))
-        if self.data_type == self.DataType.BONE_WEIGHTS:
+        if (self.data_type == self.DataType.BONE_WEIGHTS) | (self.data_type == self.DataType.BYTE4C):
             weights = struct.unpack_from("HHHH", buf, offset)
             return tuple(weight / 32767.0 for weight in weights)
 

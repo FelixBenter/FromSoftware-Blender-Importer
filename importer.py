@@ -1,111 +1,119 @@
-
-
-from os import remove, listdir
-from os.path import isfile, join
+from os import listdir, mkdir
+from os.path import isfile, join, dirname, realpath
 import bpy
 import bmesh
-from .dcx import DCX
-from .bnd import BND3, BND4
 from .flver_utils import read_flver
 from .tpf import TPF, convert_to_png
 from bpy.app.translations import pgettext
 from mathutils import Matrix, Vector
 from enum import Enum
+import subprocess
 from random import random
+from shutil import copyfile, rmtree
 
 class Mode(Enum):
-    CHR = 1 # Must be unpacked from dcx and a rig applied
-    DS2_CHR = 2 # Already unpacked from dcx, rig must be applied
-    DS1_MAP = 3 # Must be unpacked from dcx, no rig
-    DS3_MAP = 4 # Must be unpacked from dcx, no rig
+    DS1_3_CHR = 1
+    DS1_MAP = 2
+    DS2_CHR = 3
+    DS2_MAP = 4
+    DS3_MAP = 6
+    FLVER = 7
 
 
-
-def run(unpack_path, path, name, get_textures, unwrap_mesh):
+def run(unpack_path, path, file_name, get_textures, clean_up_files):
         
-        print("Importing {} from {}".format(name, str(path)))
+        print("Importing {} from {}".format(file_name, str(path)))
 
-        if name.endswith(".chrbnd.dcx"): # DS1 & 3 Character files
-            name = name[:-11]
-            game_mode = Mode.CHR
-        elif name.endswith(".mapbnd.dcx"): # DS3 Map
-            name = name[:-11]
+        if file_name.endswith(".chrbnd.dcx"): # DS1 & 3 Character files
+            name = file_name[:-11]
+            game_mode = Mode.DS1_3_CHR
+        elif file_name.endswith(".mapbnd.dcx"): # DS3 Map
+            name = file_name[:-11]
             game_mode = Mode.DS3_MAP
-        elif name.endswith(".flver.dcx"): # DS1 Map
-            name = name[:-10]
+        elif file_name.endswith(".flver.dcx"): # DS1 Map
+            name = file_name[:-10]
             game_mode = Mode.DS1_MAP
-        elif name.endswith(".bnd"): # DS2 Character files
-            name = name[:-4]
+        elif file_name.endswith(".bnd"): # DS2 Character files
+            name = file_name[:-4]
             game_mode = Mode.DS2_CHR
+        elif file_name.endswith(".flver"):
+            name = file_name[:-6]
+            game_mode = Mode.FLVER
         else:
             raise TypeError("Unsupported DCX type")
         
-        import_mesh(unpack_path, path, name, get_textures, unwrap_mesh, game_mode)
+        import_mesh(path, file_name, name, unpack_path, get_textures, game_mode, clean_up_files)
 
+def import_mesh(path, file_name, base_name, unpack_path, get_textures, game_mode, clean_up_files):
+    """
+    Converts a DCX file to flver and imports it into blender. 
+    path: Directory of the dcx file.
+    file_name: File name of the dcx file
+    base_name: ID of the object.
+    unpack_path: Where the dcx file and textures will be unpacked to.
+    get_textures: If to look for textures in {path} and convert them to png.
+    game_mode: Which type of file it is unpacking (Changes file structure of unpath_path).
+    """
 
-def import_mesh(unpack_path, path, name, get_textures, unwrap_mesh, game_mode):
+    mkdir(f"{unpack_path}{base_name}")
+    tmp_path = f"{unpack_path}{base_name}"
+    sys_path = dirname(realpath(__file__))
+    copyfile( f"{path}{file_name}", f"{tmp_path}\\{file_name}")
 
-    if game_mode == Mode.CHR:
-        DCXFile = DCX(path + name + ".chrbnd.dcx", None)
-        magic = DCXFile.data[:4]
-        map(ord, magic)
-        magic = magic.decode("utf-8")
-        if (magic == 'BND4'):             # CHR game_mode can be from DS1 or DS3, 
-            BNDFile = BND4(DCXFile.data)  # so have to check which BND version.
-        elif (magic == 'BND3'):
-            BNDFile = BND3(DCXFile.data)
-        else:
-            raise Exception("File must be in BND4 or BND3 format")
-        BNDFile.write_unpacked_dir(unpack_path)
-        flver_path = unpack_path + "\\.unpacked\\" + name + ".flver"
+    if game_mode == Mode.DS1_MAP:
+        command = f"{sys_path}\\Yabber\\Yabber.DCX.exe {tmp_path}\\{file_name}"
+    else:
+        command = f"{sys_path}\\Yabber\\Yabber.exe {tmp_path}\\{file_name}"
+    subprocess.run(command, shell = False)
 
-
-    elif game_mode == Mode.DS3_MAP:
-        DCXFile = DCX(path + name + ".mapbnd.dcx", None)
-        BNDFile = BND4(DCXFile.data)
-        BNDFile.write_unpacked_dir(unpack_path)
-        flver_path = unpack_path + "\\.unpacked\\" + name + ".flver"
+    if game_mode == Mode.DS1_3_CHR: 
+        flver_path = f"{tmp_path}\\{base_name}-chrbnd-dcx\\chr\\{base_name}\\{base_name}.flver"
+        import_rig = True
     
     elif game_mode == Mode.DS1_MAP:
-        DCXFile = DCX(path + name + ".flver.dcx", None)
-        DCXFile.write_unpacked(unpack_path + name + ".flver")
-        flver_path = unpack_path + name + ".flver"
+        flver_path = f"{tmp_path}\\{base_name}.flver"
+        import_rig = False
 
     elif game_mode == Mode.DS2_CHR:
-        BNDFile = BND4(path + name + ".bnd")
-        BNDFile.write_unpacked_dir(unpack_path)
-        flver_path = unpack_path + "\\" + name + ".bnd.unpacked\\" + name + ".flv"
-    
+        flver_path = f"{tmp_path}\\{base_name}-bnd\\{base_name}.flv"
+        import_rig = True
+
     elif game_mode == Mode.DS2_MAP:
-        DCXFile = DCX(path, None)
-        BNDFile = BND4(DCXFile.data)
-        BNDFile.write_unpacked_dir(unpack_path)
-        flver_path = unpack_path + ".unpacked\\" + name + ".flver"
-        
+        flver_path = None
+        import_rig = False
+
+    elif game_mode == Mode.DS3_MAP:
+        flver_path = f"{tmp_path}\\{base_name}-mapbnd-dcx\\map\\{base_name[:-7]}\\{base_name}\\Model\\{base_name}.flver"
+        import_rig = False
+    
+    elif game_mode == Mode.FLVER:
+        flver_path = f"{tmp_path}\\{base_name}.flver"
+        import_rig = False
+
     else:
-        raise Exception("Unsupported game/file type")
+        raise Exception("Unsupported file type.")
 
     import_rig = False # Replace with proper usage once rigging is fixed
 
     flver_data = read_flver(flver_path)
     inflated_meshes = flver_data.inflate()
 
-    collection = bpy.data.collections.new(name)
+    collection = bpy.data.collections.new(base_name)
     bpy.context.scene.collection.children.link(collection)
     
     # Create armature
     if import_rig:
-        armature = create_armature(name, collection, flver_data)
+        armature = create_armature(base_name, collection, flver_data)
 
     materials = []
 
     if get_textures:
-        texture_path = import_textures(path, name, unpack_path)
+        texture_path = import_textures(path, base_name, unpack_path)
         files = [f for f in listdir(texture_path) if isfile(join(texture_path, f))]
         for file in files:
             if "_a" in file:
-                base_name = file[:-6]
-                materials.append(create_material(texture_path, base_name))
+                name = file[:-6]
+                materials.append(create_material(texture_path, name))
 
 
     for index, (flver_mesh, inflated_mesh) in enumerate(
@@ -115,15 +123,15 @@ def import_mesh(unpack_path, path, name, get_textures, unwrap_mesh, game_mode):
 
         # Construct mesh
         material_name = flver_data.materials[flver_mesh.material_index].name
+        if material_name.endswith("_cloth"):
+            material_name = material_name[:-6]
+            
         verts = [
             Vector((v[0], v[2], v[1]))
             for v in inflated_mesh.vertices.positions
         ]
-        
-        if material_name.endswith("_cloth"):
-            material_name = material_name[:-6] # _cloth used for physics items
 
-        mesh_name = f"{name}.{index}.{material_name}"
+        mesh_name = f"{base_name}_{material_name}"
         mesh = bpy.data.meshes.new(name=mesh_name)
         mesh.from_pydata(verts, [], inflated_mesh.faces)
 
@@ -139,10 +147,14 @@ def import_mesh(unpack_path, path, name, get_textures, unwrap_mesh, game_mode):
 
         # Assign materials to object
         # Materials usually match the name of the object they are part of, but not always.
-        # Should be replaced with a more robust method
-        for material in materials:
-            if material.name.lower().endswith(material_name.lower()):
-                obj.data.materials.append(material)
+        # Should be replaced with a more robust method.
+
+        if get_textures:
+            for material in materials:
+                if (material.name.lower() == mesh_name.lower()) or \
+                    (material.name.lower().endswith(mesh_name.lower())) or \
+                    (mesh_name.lower().endswith(material.name.lower())):
+                    obj.data.materials.append(material)
 
         # Create vertex groups for bones
         for bone_index in flver_mesh.bone_indices:
@@ -151,13 +163,14 @@ def import_mesh(unpack_path, path, name, get_textures, unwrap_mesh, game_mode):
         bm = bmesh.new()
         bm.from_mesh(mesh)
 
-        if unwrap_mesh:
-            uv_layer = bm.loops.layers.uv.new()
-            for face in bm.faces:
-                for loop in face.loops:
-                    u, v = inflated_mesh.vertices.uv[loop.vert.index] # Currently none types on DS3 models
-                    loop[uv_layer].uv = (u, 1.0 - v)
-                face.smooth = True
+        # Creating UVs
+        uv_layer = bm.loops.layers.uv.new()
+        for face in bm.faces:
+            for loop in face.loops:
+                u, v = inflated_mesh.vertices.uv[loop.vert.index] # Currently none types on DS3 models
+                loop[uv_layer].uv = (u, 1.0 - v)
+            face.smooth = True
+
         if import_rig:
             weight_layer = bm.verts.layers.deform.new()
             for vert in bm.verts:
@@ -170,13 +183,17 @@ def import_mesh(unpack_path, path, name, get_textures, unwrap_mesh, game_mode):
         
         bm.to_mesh(mesh)
         bm.free()
-        mesh.update()        
+        mesh.update()
+
+    if clean_up_files:
+        print(f"Removing {tmp_path}")
+        rmtree(tmp_path)
         
 def create_armature(name, collection, flver_data):
     armature = bpy.data.objects.new(name, bpy.data.armatures.new(name))
     collection.objects.link(armature)
     armature.data.display_type = "STICK"
-    
+    armature.show_in_front = True
     bpy.context.view_layer.objects.active = armature
     bpy.ops.object.editmode_toggle() 
 
@@ -240,26 +257,27 @@ def create_armature(name, collection, flver_data):
     bpy.ops.object.editmode_toggle() 
     return armature
 
-def import_textures(path, name, unpack_path):
+def import_textures(path, base_name, unpack_path):
     """
     Unpacks the specified tpf file into dds textures
     and returns the directory where unpacked.
     """
-    if isfile(path + name + ".texbnd.dcx"):
-        DCXFile = DCX(path + name + ".texbnd.dcx", None)
-        BNDFile = BND4(DCXFile.data)
-    else:
-        raise FileNotFoundError("Missing texture file.")
+    sys_path = dirname(realpath(__file__))
+    try:
+        copyfile( f"{path}{base_name}.texbnd.dcx", f"{unpack_path}\\{base_name}\\{base_name}.texbnd.dcx")
+    except OSError as e:
+        raise FileNotFoundError("Missing texture file")
 
-    BNDFile.write_unpacked_dir(unpack_path)
-    tpf_path = unpack_path + "\\.unpacked\\" + name + ".tpf"
+    command = f"{sys_path}\\Yabber\\Yabber.exe {unpack_path}\\{base_name}\\{base_name}.texbnd.dcx"
+    subprocess.run(command, shell = False)
+
+    tpf_path = f"{unpack_path}\\{base_name}\\{base_name}-texbnd-dcx\\chr\\{base_name}\\{base_name}.tpf"
     TPFFile = TPF(tpf_path)
     print("Importing TPF file from " + str(tpf_path))
     TPFFile.unpack()
-    TPFFile.save_textures_to_file()
-    convert_to_png(TPFFile.file_path + "_textures\\")
-    remove(tpf_path)
-    return TPFFile.file_path + "_textures\\"
+    TPFFile.save_textures_to_file(file_path = f"{unpack_path}\\{base_name}")
+    convert_to_png(f"{unpack_path}{base_name}_textures\\")
+    return f"{unpack_path}\\{base_name}_textures\\"
     
 
 def create_material(texture_path, name):
@@ -279,7 +297,7 @@ def create_material(texture_path, name):
 
     bsdf = material.node_tree.nodes.get("Principled BSDF")
     material.diffuse_color = (random(), random(), random(), 1.0) # Viewport display colour
-    material.blend_method = 'CLIP'
+    material.blend_method = 'HASHED'
 
     try:
         albedo_node = material.node_tree.nodes.new("ShaderNodeTexImage")   
