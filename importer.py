@@ -1,4 +1,4 @@
-from os import listdir, mkdir
+from os import listdir, mkdir, walk
 from os.path import isfile, join, dirname, realpath
 import bpy
 import bmesh
@@ -18,6 +18,7 @@ class Mode(Enum):
     DS2_MAP = 4
     DS3_MAP = 6
     FLVER = 7
+    PARTS = 8
 
 
 def run(unpack_path, path, file_name, get_textures, clean_up_files):
@@ -39,6 +40,9 @@ def run(unpack_path, path, file_name, get_textures, clean_up_files):
         elif file_name.endswith(".flver"):
             name = file_name[:-6]
             game_mode = Mode.FLVER
+        elif file_name.endswith(".partsbnd.dcx"):
+            name = file_name[:-13]
+            game_mode = Mode.PARTS
         else:
             raise TypeError("Unsupported DCX type")
         
@@ -66,31 +70,12 @@ def import_mesh(path, file_name, base_name, unpack_path, get_textures, game_mode
         command = f"{sys_path}\\Yabber\\Yabber.exe {tmp_path}\\{file_name}"
     subprocess.run(command, shell = False)
 
-    if game_mode == Mode.DS1_3_CHR: 
-        flver_path = f"{tmp_path}\\{base_name}-chrbnd-dcx\\chr\\{base_name}\\{base_name}.flver"
-        import_rig = True
-    
-    elif game_mode == Mode.DS1_MAP:
-        flver_path = f"{tmp_path}\\{base_name}.flver"
-        import_rig = False
-
-    elif game_mode == Mode.DS2_CHR:
-        flver_path = f"{tmp_path}\\{base_name}-bnd\\{base_name}.flv"
-        import_rig = True
-
-    elif game_mode == Mode.DS2_MAP:
-        flver_path = None
-        import_rig = False
-
-    elif game_mode == Mode.DS3_MAP:
-        flver_path = f"{tmp_path}\\{base_name}-mapbnd-dcx\\map\\{base_name[:-7]}\\{base_name}\\Model\\{base_name}.flver"
-        import_rig = False
-    
-    elif game_mode == Mode.FLVER:
-        flver_path = f"{tmp_path}\\{base_name}.flver"
-        import_rig = False
-
-    else:
+    flver_path = None
+    for dirpath, subdirs, files in walk(tmp_path):
+        for x in files:
+            if x.endswith(".flver") | x.endswith(".flv"):
+                flver_path = join(dirpath, x)
+    if flver_path == None:
         raise Exception("Unsupported file type.")
 
     import_rig = False # Replace with proper usage once rigging is fixed

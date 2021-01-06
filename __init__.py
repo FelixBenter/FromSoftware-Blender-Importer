@@ -58,7 +58,7 @@ class DcxImporter(bpy.types.Operator, ImportHelper):
     bl_label = "Compressed Fromsoft (.dcx, .bnd)"
     bl_options = {"REGISTER", "UNDO"}
 
-    filter_glob = StringProperty(default="*.flver.dcx;*.mapbnd.dcx;*.chrbnd.dcx;*.bnd", options = {"HIDDEN"})
+    filter_glob = StringProperty(default="*.dcx;*.bnd", options = {"HIDDEN"})
     get_textures = BoolProperty(name = "Import Textures (Only DS3 & Sekiro)", default = False)
     clean_up_files = BoolProperty(name = "Clean up files after import", default = True)
     files = CollectionProperty(type=bpy.types.OperatorFileListElement, options={'HIDDEN', 'SKIP_SAVE'})
