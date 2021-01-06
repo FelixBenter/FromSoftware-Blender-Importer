@@ -39,12 +39,12 @@ class UnpackPathPreference(bpy.types.AddonPreferences):
     bl_idname = __name__
 
     unpack_path = StringProperty(
-        default = "//",
+        default = "",
         description = "The path that textures & models will be unpacked to.\nPreferably an empty folder",
         subtype = "DIR_PATH")
 
     dll_path = StringProperty(
-        default = "//",
+        default = "",
         description = "Path to the oo2core_6_win64.dll file.\nOnly necessary for Sekiro files.",
         subtype = "FILE_PATH")
 
@@ -69,7 +69,8 @@ class DcxImporter(bpy.types.Operator, ImportHelper):
         unpack_path = context.preferences.addons[__name__].preferences.unpack_path
         dll_path = context.preferences.addons[__name__].preferences.dll_path
         sys_path = dirname(realpath(__file__))
-        copyfile(dll_path, f"{sys_path}\\Yabber\\oo2core_6_win64.dll")
+        if dll_path != "":
+            copyfile(dll_path, f"{sys_path}\\Yabber\\oo2core_6_win64.dll")
         
         for file in self.files:
             run(unpack_path, self.directory, file.name, self.get_textures, self.clean_up_files)
