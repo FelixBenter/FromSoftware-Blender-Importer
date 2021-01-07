@@ -1,54 +1,22 @@
 from os import listdir, mkdir, walk
-from os.path import isfile, join, dirname, realpath
+from os.path import isfile, join, dirname, realpath, basename
 import bpy
 import bmesh
 from .flver_utils import read_flver
 from .tpf import TPF, convert_to_png
 from bpy.app.translations import pgettext
 from mathutils import Matrix, Vector
-from enum import Enum
 import subprocess
 from random import random
 from shutil import copyfile, rmtree
 
-class Mode(Enum):
-    DS1_3_CHR = 1
-    DS1_MAP = 2
-    DS2_CHR = 3
-    DS2_MAP = 4
-    DS3_MAP = 6
-    FLVER = 7
-    PARTS = 8
-
-
 def run(unpack_path, path, file_name, get_textures, clean_up_files):
         
         print("Importing {} from {}".format(file_name, str(path)))
+        yabber_dcx = file_name.endswith(".flver.dcx") # Special case for DS1 maps
+        import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabber_dcx)
 
-        if file_name.endswith(".chrbnd.dcx"): # DS1 & 3 Character files
-            name = file_name[:-11]
-            game_mode = Mode.DS1_3_CHR
-        elif file_name.endswith(".mapbnd.dcx"): # DS3 Map
-            name = file_name[:-11]
-            game_mode = Mode.DS3_MAP
-        elif file_name.endswith(".flver.dcx"): # DS1 Map
-            name = file_name[:-10]
-            game_mode = Mode.DS1_MAP
-        elif file_name.endswith(".bnd"): # DS2 Character files
-            name = file_name[:-4]
-            game_mode = Mode.DS2_CHR
-        elif file_name.endswith(".flver"):
-            name = file_name[:-6]
-            game_mode = Mode.FLVER
-        elif file_name.endswith(".partsbnd.dcx"):
-            name = file_name[:-13]
-            game_mode = Mode.PARTS
-        else:
-            raise TypeError("Unsupported DCX type")
-        
-        import_mesh(path, file_name, name, unpack_path, get_textures, game_mode, clean_up_files)
-
-def import_mesh(path, file_name, base_name, unpack_path, get_textures, game_mode, clean_up_files):
+def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabber_dcx):
     """
     Converts a DCX file to flver and imports it into blender. 
     path: Directory of the dcx file.
@@ -56,20 +24,25 @@ def import_mesh(path, file_name, base_name, unpack_path, get_textures, game_mode
     base_name: ID of the object.
     unpack_path: Where the dcx file and textures will be unpacked to.
     get_textures: If to look for textures in {path} and convert them to png.
-    game_mode: Which type of file it is unpacking (Changes file structure of unpath_path).
+    yabber_dcx: Whether to unpack with yabber.dcx.exe or regular yabber.exe
     """
-
+    base_name = file_name.split('.')[0]
     mkdir(f"{unpack_path}{base_name}")
     tmp_path = f"{unpack_path}{base_name}"
     sys_path = dirname(realpath(__file__))
     copyfile( f"{path}{file_name}", f"{tmp_path}\\{file_name}")
 
-    if game_mode == Mode.DS1_MAP:
+    if yabber_dcx:
         command = f"{sys_path}\\Yabber\\Yabber.DCX.exe {tmp_path}\\{file_name}"
     else:
         command = f"{sys_path}\\Yabber\\Yabber.exe {tmp_path}\\{file_name}"
-    subprocess.run(command, shell = False)
 
+    p = subprocess.Popen(command, stdout = subprocess.PIPE)
+    while True:
+        out, err = p.communicate()
+        if p.returncode is not None: # Yabber as issue with file
+            break
+    
     flver_path = None
     for dirpath, subdirs, files in walk(tmp_path):
         for x in files:
@@ -100,7 +73,6 @@ def import_mesh(path, file_name, base_name, unpack_path, get_textures, game_mode
                 name = file[:-6]
                 materials.append(create_material(texture_path, name))
 
-
     for index, (flver_mesh, inflated_mesh) in enumerate(
             zip(flver_data.meshes, inflated_meshes)):
         if inflated_mesh is None:
@@ -126,8 +98,7 @@ def import_mesh(path, file_name, base_name, unpack_path, get_textures, game_mode
 
         # Assign armature to object
         if import_rig:
-            obj.modifiers.new(type="ARMATURE",
-                              name=pgettext("Armature")).object = armature
+            obj.modifiers.new(type="ARMATURE", name=pgettext("Armature")).object = armature
             obj.parent = armature
 
         # Assign materials to object
@@ -152,7 +123,7 @@ def import_mesh(path, file_name, base_name, unpack_path, get_textures, game_mode
         uv_layer = bm.loops.layers.uv.new()
         for face in bm.faces:
             for loop in face.loops:
-                u, v = inflated_mesh.vertices.uv[loop.vert.index] # Currently none types on DS3 models
+                u, v = inflated_mesh.vertices.uv[loop.vert.index]
                 loop[uv_layer].uv = (u, 1.0 - v)
             face.smooth = True
 
@@ -165,7 +136,7 @@ def import_mesh(path, file_name, base_name, unpack_path, get_textures, game_mode
                     if weight == 0.0:
                         continue
                     vert[weight_layer][index] = weight
-        
+
         bm.to_mesh(mesh)
         bm.free()
         mesh.update()
@@ -288,9 +259,9 @@ def create_material(texture_path, name):
         albedo_node = material.node_tree.nodes.new("ShaderNodeTexImage")   
         albedo_node.image = bpy.data.images.load(texture_path + name + "_a.PNG")
         node_tree.links.new(albedo_node.outputs["Color"], bsdf.inputs["Base Color"])
-        node_tree.links.new(albedo_node.outputs["Alpha"], bsdf.inputs["Alpha"]) # Only available on Blender 2.9+
+        node_tree.links.new(albedo_node.outputs["Alpha"], bsdf.inputs["Alpha"]) # Only available on Blender 2.8+
     except (RuntimeError):
-        # Occasionally a texture will be missing some maps, so for now just skip these missing textures/nodes
+        # Some games use different material pipelines, so they may be missing some of these maps
         pass
     
     try:
@@ -312,10 +283,17 @@ def create_material(texture_path, name):
         node_tree.links.new(normal_node.outputs["Color"], invert_norm.inputs["Color"])   # coordinate system
         node_tree.links.new(invert_norm.outputs["Color"], normal_conv.inputs["Color"])
         node_tree.links.new(normal_conv.outputs["Normal"], bsdf.inputs["Normal"])
-        normal_conv.inputs[0].default_value = 0.5
+        normal_conv.inputs[0].default_value = 0.2
     except (RuntimeError):
         pass
 
+    try:
+        metalness_node = material.node_tree.nodes.new("ShaderNodeTexImage")
+        metalness_node.image = bpy.data.images.load(texture_path + name + "_m.PNG")
+        metalness_node.image.colorspace_settings.name = 'Non-Color'
+        node_tree.links.new(metalness_node.outputs["Color"], bsdf.inputs["Metallic"])
+    except (RuntimeError):
+        pass
     
     return material
     

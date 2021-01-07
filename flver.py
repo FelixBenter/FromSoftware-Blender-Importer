@@ -271,7 +271,7 @@ class VertexBufferStructMember:
             return tuple(struct.unpack_from("ffff", buf, offset))
         if self.data_type == self.DataType.BONE_INDICES:
             return tuple(struct.unpack_from("BBBB", buf, offset))
-        if (self.data_type == self.DataType.BONE_WEIGHTS) | (self.data_type == self.DataType.BYTE4C):
+        if (self.data_type == self.DataType.BONE_WEIGHTS):
             weights = struct.unpack_from("HHHH", buf, offset)
             return tuple(weight / 32767.0 for weight in weights)
 
