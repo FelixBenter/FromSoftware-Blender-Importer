@@ -1,14 +1,12 @@
-import os
 from os.path import isfile, join
-import subprocess
-
+import subprocess, os
 
 class TPF:   
     """
     A container for texture files.
     """
     def __init__(self, tpf_path):
-         
+
         self.tpf_path = tpf_path
         self.textures = []
         self.file_path = self.tpf_path[:-4]
@@ -16,7 +14,7 @@ class TPF:
 
     def unpack(self):
         """
-        Unpackes the textures files and appends them to self.textures
+        Unpackes the textures files and appends them to self.textures.
         """
         with open(self.tpf_path, "rb") as self.data:
             signature = self.data.read(4)  # ".TPF "
@@ -55,19 +53,26 @@ class TPF:
                 if file_name_offset > 0:
                     self.data.seek(file_name_offset)
                     self.filenames.append(self.read_double_null_terminated_string())
+                else:
+                    raise Exception("Bad file_name_offset value.")
 
                 if data_offset > 0:
                     self.data.seek(data_offset)
                     result = self.data.read(data_size)
+                else:
+                    raise Exception("Bad data_offset value.")
 
                 self.data.seek(position)
     
                 self.textures.append(result)
 
     def save_textures_to_file(self, file_path):
-        print("Writing {} textures to {}".format(len(self.textures), file_path + "_textures\\"))
-        if not os.path.exists(file_path + "_textures\\"):
-            os.mkdir(file_path + "_textures\\")
+        """
+        Saves textures found in this tpf file in a "_textures" 
+        directory within the tpf file directory as .dds files.
+        """
+        print(f"Writing {len(self.textures)} textures to {file_path}_textures\\")
+        os.makedirs(file_path + "_textures\\", exist_ok = True)
 
         for i in range(len(self.textures)):
             with open(file_path + "_textures\\" + self.filenames[i].rstrip() + ".dds", "wb") as file:
@@ -75,7 +80,11 @@ class TPF:
 
     def read_double_null_terminated_string(self):
         """
+        Reads bytes into buffer until reaching 2 null terminating values, as
         Dark souls 3 TPF file image names seem to be double null terminated.
+
+        Return:
+            str: shift_jis decoded byte data.
         """
         buffer = b""
         prev_byte = b""
@@ -94,7 +103,10 @@ class TPF:
 
 def unpack_all(tpf_path):
     """
-    Unpacks all tpf files in the tpf_path directory
+    Unpacks all tpf files in the tpf_path directory to dds files.
+    
+    Args:
+        Directory in which to look for .tpf files.
     """
     files = [f for f in os.listdir(tpf_path) if isfile(join(tpf_path, f))]
     for file in files:
@@ -105,6 +117,9 @@ def convert_to_png(tpf_path):
     """
     Invokes the DirectXTex texture converter executable to convert dds files
     in the directory to png files, then deletes the old dds file.
+
+    Args:
+        Directory in which to look for .dds files.
     """
     dds_files = [f for f in os.listdir(tpf_path) if isfile(join(tpf_path, f))]
     for dds_file in dds_files:
@@ -120,9 +135,8 @@ def int32(data):
 
 
 if __name__ == "__main__":
-    tpf_path = "E:\\Projects\\test\\c6210.tpf"
+    tpf_path = "E:\\Projects\\test\\c3060.tpf"
     tpf = TPF(tpf_path)
     tpf.unpack()
-    tpf.save_textures_to_file()
+    tpf.save_textures_to_file("E:\\Projects\\test\\c3060")
     convert_to_png(tpf.file_path + "_textures\\")
-
