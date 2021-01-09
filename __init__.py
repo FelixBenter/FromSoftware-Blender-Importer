@@ -1,9 +1,9 @@
 bl_info = {
     "name": "Import DCX model files",
-    "description": "Import models from FROMSOFT games",
+    "description": "Import dcx files from FROMSOFT games",
     "author": "Felix Benter",
-    "version": (0, 0, 3),
-    "blender": (2, 90, 1),
+    "version": (0, 2, 0),
+    "blender": (2, 80, 1),
     "category": "Import-Export",
     "location": "File > Import",
     "warning": "",
@@ -27,9 +27,7 @@ if "bpy" in locals():
 else:
     from .importer import run
 
-import bpy
-import gc
-from os import remove
+import bpy, gc
 from os.path import realpath, dirname
 from shutil import copyfile
 from bpy_extras.io_utils import ImportHelper
@@ -58,11 +56,23 @@ class DcxImporter(bpy.types.Operator, ImportHelper):
     bl_label = "Compressed Fromsoft (.dcx, .bnd)"
     bl_options = {"REGISTER", "UNDO"}
 
-    filter_glob = StringProperty(default="*.chrbnd.dcx;*.mapbnd.dcx;*.flver.dcx;*.partsbnd.dcx*.bnd", options = {"HIDDEN"})
-    get_textures = BoolProperty(name = "Import Textures (Only DS3 & Sekiro)", default = False)
-    clean_up_files = BoolProperty(name = "Clean up files after import", default = True)
-    files = CollectionProperty(type=bpy.types.OperatorFileListElement, options={'HIDDEN', 'SKIP_SAVE'})
-    directory = StringProperty(subtype='DIR_PATH')
+    filter_glob = StringProperty(
+        default="*.chrbnd.dcx;*.mapbnd.dcx;*.flver.dcx;*.partsbnd.dcx;*.bnd", 
+        options = {"HIDDEN"})
+    get_textures = BoolProperty(
+        name = "Import Textures (Only DS3 & Sekiro)", 
+        default = False)
+    clean_up_files = BoolProperty(
+        name = "Clean up files after import", 
+        default = True)
+    import_rig = BoolProperty(
+        name = "Import rig",
+        default = False)
+    files = CollectionProperty(
+        type=bpy.types.OperatorFileListElement, 
+        options={'HIDDEN', 'SKIP_SAVE'})
+    directory = StringProperty(
+        subtype='DIR_PATH')
 
     def execute(self, context):
 
@@ -71,10 +81,12 @@ class DcxImporter(bpy.types.Operator, ImportHelper):
         sys_path = dirname(realpath(__file__))
         if dll_path != "":
             copyfile(dll_path, f"{sys_path}\\Yabber\\oo2core_6_win64.dll")
+        if unpack_path == "":
+            raise Exception("Unpack path not set.\nSet it in the addon configuration.")
         
         for file in self.files:
-            run(unpack_path, self.directory, file.name, self.get_textures, self.clean_up_files)
-            gc.collect() # Probably not necessary, but just in case Blender keeps the plugin running for whatever reason
+            run(unpack_path, self.directory, file.name, self.get_textures, self.clean_up_files, self.import_rig)
+            gc.collect() # Probably not necessary, but in case Blender keeps the plugin running for whatever reason
         return {"FINISHED"}
     
 def menu_import(self, context):
