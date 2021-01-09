@@ -1,10 +1,6 @@
-from enum import Enum
 import struct
 from collections import deque
 from . import flver
-
-import struct
-from collections import deque
 
 class StructReader:
     def __init__(self, fp):
@@ -178,13 +174,17 @@ def read_mesh(reader):
     assert data.popleft() == 0  # I
     default_bone_index = data.popleft()  # I
     bone_count = data.popleft()  # I
-    data.popleft()  # TODO: bounding box offset (I)
+    bounding_offset = data.popleft()  # TODO: bounding box offset (I)
     bone_offset = data.popleft()  # I
     index_buffer_count = data.popleft()  # I
     index_buffer_offset = data.popleft()  # I
     vertex_buffer_count = data.popleft()  # I
     assert vertex_buffer_count in {1, 2, 3}
     vertex_buffer_offset = data.popleft()  # I
+
+    bone_count = default_bone_index # In DS3+ this seems to be necessary to import rigs, however it is inconsistent.
+    # TODO: Find more robust method for DS3+ rigs.
+    
 
     bone_indices = reader.read_struct("I" * bone_count, bone_offset)
     index_buffer_indices = reader.read_struct("I" * index_buffer_count,

@@ -1,33 +1,36 @@
+import bpy, bmesh, subprocess
 from os import listdir, mkdir, walk
-from os.path import isfile, join, dirname, realpath, basename
-import bpy
-import bmesh
+from os.path import isfile, join, dirname, realpath
 from .flver_utils import read_flver
 from .tpf import TPF, convert_to_png
 from bpy.app.translations import pgettext
 from mathutils import Matrix, Vector
-import subprocess
 from random import random
 from shutil import copyfile, rmtree
 
-def run(unpack_path, path, file_name, get_textures, clean_up_files):
+def run(unpack_path, path, file_name, get_textures, clean_up_files, import_rig):
         
         print("Importing {} from {}".format(file_name, str(path)))
         yabber_dcx = file_name.endswith(".flver.dcx") # Special case for DS1 maps
-        import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabber_dcx)
+        import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabber_dcx, import_rig)
 
-def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabber_dcx):
+def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabber_dcx, import_rig):
     """
-    Converts a DCX file to flver and imports it into blender. 
-    path: Directory of the dcx file.
-    file_name: File name of the dcx file
-    base_name: ID of the object.
-    unpack_path: Where the dcx file and textures will be unpacked to.
-    get_textures: If to look for textures in {path} and convert them to png.
-    yabber_dcx: Whether to unpack with yabber.dcx.exe or regular yabber.exe
+    Converts a DCX file to flver and imports it into Blender.
+    
+    Args:
+        path (str): Directory of the dcx file.
+        file_name (str): File name of the dcx file
+        base_name (str): ID of the object.
+        unpack_path (str): Where the dcx file and textures will be unpacked to.
+        get_textures (bool): If to look for textures in {path} and convert them to png.
+        yabber_dcx (bool): Whether to unpack with yabber.dcx.exe (true) or regular yabber.exe
     """
     base_name = file_name.split('.')[0]
-    mkdir(f"{unpack_path}{base_name}")
+    try:
+        mkdir(f"{unpack_path}{base_name}")
+    except FileExistsError:
+        pass
     tmp_path = f"{unpack_path}{base_name}"
     sys_path = dirname(realpath(__file__))
     copyfile( f"{path}{file_name}", f"{tmp_path}\\{file_name}")
@@ -37,11 +40,11 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabb
     else:
         command = f"{sys_path}\\Yabber\\Yabber.exe {tmp_path}\\{file_name}"
 
-    p = subprocess.Popen(command, stdout = subprocess.PIPE)
+    p = subprocess.Popen(command, stderr = subprocess.PIPE, stdout = subprocess.PIPE)
     while True:
         out, err = p.communicate()
-        if p.returncode is not None: # Yabber as issue with file
-            break
+        if p.returncode is not None: 
+            break # Prevents Yabber from holding up Blender if it fails unpacking.
     
     flver_path = None
     for dirpath, subdirs, files in walk(tmp_path):
@@ -49,9 +52,7 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabb
             if x.endswith(".flver") | x.endswith(".flv"):
                 flver_path = join(dirpath, x)
     if flver_path == None:
-        raise Exception("Unsupported file type.")
-
-    import_rig = False # Replace with proper usage once rigging is fixed
+        raise Exception(f"Unsupported file type: {file_name}")
 
     flver_data = read_flver(flver_path)
     inflated_meshes = flver_data.inflate()
@@ -80,9 +81,6 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabb
 
         # Construct mesh
         material_name = flver_data.materials[flver_mesh.material_index].name
-        if material_name.endswith("_cloth"):
-            material_name = material_name[:-6]
-            
         verts = [
             Vector((v[0], v[2], v[1]))
             for v in inflated_mesh.vertices.positions
@@ -100,11 +98,18 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabb
         if import_rig:
             obj.modifiers.new(type="ARMATURE", name=pgettext("Armature")).object = armature
             obj.parent = armature
+            
+            # Create vertex groups for bones
+            if len(flver_mesh.bone_indices) == 0:
+                print(f"{mesh_name} Has empty bone indices")
+            for bone_index in flver_mesh.bone_indices:
+                try:
+                    obj.vertex_groups.new(name=flver_data.bones[bone_index].name)
+                except IndexError:
+                    print(f"Bone index error at {bone_index}")
 
         # Assign materials to object
-        # Materials usually match the name of the object they are part of, but not always.
-        # Should be replaced with a more robust method.
-
+        # TODO: Replace with a more robust method.
         if get_textures:
             for material in materials:
                 if (material.name.lower() == mesh_name.lower()) or \
@@ -112,9 +117,7 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabb
                     (mesh_name.lower().endswith(material.name.lower())):
                     obj.data.materials.append(material)
 
-        # Create vertex groups for bones
-        for bone_index in flver_mesh.bone_indices:
-            obj.vertex_groups.new(name=flver_data.bones[bone_index].name)
+
 
         bm = bmesh.new()
         bm.from_mesh(mesh)
@@ -130,12 +133,15 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabb
         if import_rig:
             weight_layer = bm.verts.layers.deform.new()
             for vert in bm.verts:
-                weights = inflated_mesh.vertices.bone_weights[vert.index]
-                indices = inflated_mesh.vertices.bone_indices[vert.index]
-                for index, weight in zip(indices, weights):
-                    if weight == 0.0:
-                        continue
-                    vert[weight_layer][index] = weight
+                try:
+                    weights = inflated_mesh.vertices.bone_weights[vert.index]
+                    indices = inflated_mesh.vertices.bone_indices[vert.index]
+                    for index, weight in zip(indices, weights):
+                        if weight == 0.0:
+                            continue
+                        vert[weight_layer][index] = weight
+                except IndexError:
+                    continue # TODO: Replace with robust solution.
 
         bm.to_mesh(mesh)
         bm.free()
@@ -146,9 +152,20 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, yabb
         rmtree(tmp_path)
         
 def create_armature(name, collection, flver_data):
+    """
+    Creates a Blender armature.
+
+    Args:
+        name (str): Base name / ID of the file.
+        collection (Collection): Blender scene collection to place the armature in.
+        flver_data (Flver): Data for bone information.
+    
+    Returns:
+        Object: Armature fitting to model.
+    """
     armature = bpy.data.objects.new(name, bpy.data.armatures.new(name))
     collection.objects.link(armature)
-    armature.data.display_type = "STICK"
+    armature.data.display_type = "OCTAHEDRAL"
     armature.show_in_front = True
     bpy.context.view_layer.objects.active = armature
     bpy.ops.object.editmode_toggle() 
@@ -215,8 +232,16 @@ def create_armature(name, collection, flver_data):
 
 def import_textures(path, base_name, unpack_path):
     """
-    Unpacks the specified tpf file into dds textures
+    Unpacks the specified tpf file into png textures
     and returns the directory where unpacked.
+    
+    Args:
+        path (str): Path to the directory where the dcx texture file exists.
+        base_name (str): 'ID' of the file being unpacked, consistent with model file.
+        unpack_path (str): User defined unpack directory.
+
+    Returns:
+        str: The directory where the textures have been unpacked to.
     """
     sys_path = dirname(realpath(__file__))
     try:
@@ -236,18 +261,20 @@ def import_textures(path, base_name, unpack_path):
     return f"{unpack_path}\\{base_name}_textures\\"
     
 
-def create_material(texture_path, name):
+def create_material(texture_path, base_name):
     """
     Creates a blender principled shader material
     with an albedo, roughness and normal map.
 
-    texture_path: absolute path to texture unpack directory
-    name: basename of texture (eg: {name}_a.PNG)
+    Args:
+        texture_path (str): absolute path to texture unpack directory
+        base_name (str): 'ID' of the file being unpacked, consistent with model file.
 
-    return: blender material
+    Returns:
+        Material: Blender principled shader material.
     """
 
-    material = bpy.data.materials.new(name)
+    material = bpy.data.materials.new(base_name)
     material.use_nodes = True
     node_tree = material.node_tree
 
@@ -257,7 +284,7 @@ def create_material(texture_path, name):
 
     try:
         albedo_node = material.node_tree.nodes.new("ShaderNodeTexImage")   
-        albedo_node.image = bpy.data.images.load(texture_path + name + "_a.PNG")
+        albedo_node.image = bpy.data.images.load(texture_path + base_name + "_a.PNG")
         node_tree.links.new(albedo_node.outputs["Color"], bsdf.inputs["Base Color"])
         node_tree.links.new(albedo_node.outputs["Alpha"], bsdf.inputs["Alpha"]) # Only available on Blender 2.8+
     except (RuntimeError):
@@ -266,7 +293,7 @@ def create_material(texture_path, name):
     
     try:
         roughness_node = material.node_tree.nodes.new("ShaderNodeTexImage")
-        roughness_node.image = bpy.data.images.load(texture_path + name + "_r.PNG")
+        roughness_node.image = bpy.data.images.load(texture_path + base_name + "_r.PNG")
         roughness_node.image.colorspace_settings.name = 'Non-Color'
         invert_rough = material.node_tree.nodes.new("ShaderNodeInvert")
         node_tree.links.new(roughness_node.outputs["Color"], invert_rough.inputs["Color"])
@@ -276,11 +303,11 @@ def create_material(texture_path, name):
 
     try:
         normal_node = material.node_tree.nodes.new("ShaderNodeTexImage")   
-        normal_node.image = bpy.data.images.load(texture_path + name + "_n.PNG")
+        normal_node.image = bpy.data.images.load(texture_path + base_name + "_n.PNG")
         normal_node.image.colorspace_settings.name = 'Non-Color'
-        invert_norm = material.node_tree.nodes.new("ShaderNodeInvert")                   # Need to invert the normal map as
-        normal_conv = material.node_tree.nodes.new("ShaderNodeNormalMap")                # from seems to use a different
-        node_tree.links.new(normal_node.outputs["Color"], invert_norm.inputs["Color"])   # coordinate system
+        invert_norm = material.node_tree.nodes.new("ShaderNodeInvert")                 # Need to invert the normal map as
+        normal_conv = material.node_tree.nodes.new("ShaderNodeNormalMap")              # from seems to use a different
+        node_tree.links.new(normal_node.outputs["Color"], invert_norm.inputs["Color"]) # coordinate system
         node_tree.links.new(invert_norm.outputs["Color"], normal_conv.inputs["Color"])
         node_tree.links.new(normal_conv.outputs["Normal"], bsdf.inputs["Normal"])
         normal_conv.inputs[0].default_value = 0.2
@@ -289,13 +316,10 @@ def create_material(texture_path, name):
 
     try:
         metalness_node = material.node_tree.nodes.new("ShaderNodeTexImage")
-        metalness_node.image = bpy.data.images.load(texture_path + name + "_m.PNG")
+        metalness_node.image = bpy.data.images.load(texture_path + base_name + "_m.PNG")
         metalness_node.image.colorspace_settings.name = 'Non-Color'
         node_tree.links.new(metalness_node.outputs["Color"], bsdf.inputs["Metallic"])
     except (RuntimeError):
         pass
     
     return material
-    
-if __name__ == "__main__":
-    run("E:\\Projects\\unpack", "E:\\Projects\\test", "c1130.chrbnd.dcx", False, True)

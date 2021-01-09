@@ -242,7 +242,7 @@ class VertexBufferStructMember:
         if self.data_type in {
                 self.DataType.FLOAT2,
                 self.DataType.UV_PAIR,
-                self.DataType.BONE_INDICES,
+                self.DataType.SHORT_BONE_INDICES,
                 self.DataType.BONE_WEIGHTS,
                 self.DataType.SHORT4_TO_FLOAT4B,
         }:
@@ -251,7 +251,7 @@ class VertexBufferStructMember:
             return 12
         if self.data_type == self.DataType.FLOAT4:
             return 16
-        raise Exception("unknown size for data type")
+        raise Exception(f"unknown size for data type: {self.data_type}")
 
     def _unpack(self, buf, offset, version):
         if version >= 0x2000F:
@@ -259,21 +259,30 @@ class VertexBufferStructMember:
         else:
             uv_divisor = 1024.0
         offset += self.struct_offset
-        # UV pairs used in DS3, UV used in DS1
+
+        # UV pairs used in DS3+, UV used in DS1
         if (self.data_type == self.DataType.UV) | (self.data_type == self.DataType.UV_PAIR): 
             uv = struct.unpack_from("hh", buf, offset)
             return tuple(component / uv_divisor for component in uv)
+            
         if self.data_type == self.DataType.FLOAT2:
             return tuple(struct.unpack_from("ff", buf, offset))
         if self.data_type == self.DataType.FLOAT3:
             return tuple(struct.unpack_from("fff", buf, offset))
         if self.data_type == self.DataType.FLOAT4:
             return tuple(struct.unpack_from("ffff", buf, offset))
-        if self.data_type == self.DataType.BONE_INDICES:
+
+        if (self.data_type == self.DataType.BONE_INDICES):
             return tuple(struct.unpack_from("BBBB", buf, offset))
+        if (self.data_type == self.DataType.SHORT_BONE_INDICES):
+            return tuple(struct.unpack_from("HHHH", buf, offset))
+
         if (self.data_type == self.DataType.BONE_WEIGHTS):
             weights = struct.unpack_from("HHHH", buf, offset)
             return tuple(weight / 32767.0 for weight in weights)
+        if (self.data_type == self.data_type == self.DataType.BYTE4C):
+            weights = struct.unpack_from("BBBB", buf, offset)
+            return tuple(weight / 255.0 for weight in weights)
 
 
 class Texture:
