@@ -2,7 +2,7 @@ bl_info = {
     "name": "Import DCX model files",
     "description": "Import dcx files from FROMSOFT games",
     "author": "Felix Benter",
-    "version": (0, 2, 0),
+    "version": (0, 2, 1),
     "blender": (2, 80, 1),
     "category": "Import-Export",
     "location": "File > Import",
@@ -25,12 +25,13 @@ if "bpy" in locals():
         if sm in locals():
             importlib.reload(locals()[sm])
 else:
-    from .importer import run
+    from .importer import import_mesh
 
 import bpy, gc
 from os.path import realpath, dirname
 from shutil import copyfile
 from bpy_extras.io_utils import ImportHelper
+from pathlib import Path
 from bpy.props import StringProperty, CollectionProperty, BoolProperty
 
 class UnpackPathPreference(bpy.types.AddonPreferences):
@@ -57,7 +58,7 @@ class DcxImporter(bpy.types.Operator, ImportHelper):
     bl_options = {"REGISTER", "UNDO"}
 
     filter_glob = StringProperty(
-        default="*.chrbnd.dcx;*.mapbnd.dcx;*.flver.dcx;*.partsbnd.dcx;*.bnd", 
+        default="*.chrbnd.dcx;*.mapbnd.dcx;*.flver.dcx;*.partsbnd.dcx;*.bnd;*.objbnd.dcx", 
         options = {"HIDDEN"})
     get_textures = BoolProperty(
         name = "Import Textures (Only DS3 & Sekiro)", 
@@ -76,16 +77,23 @@ class DcxImporter(bpy.types.Operator, ImportHelper):
 
     def execute(self, context):
 
-        unpack_path = context.preferences.addons[__name__].preferences.unpack_path
-        dll_path = context.preferences.addons[__name__].preferences.dll_path
-        sys_path = dirname(realpath(__file__))
+        unpack_path = Path(context.preferences.addons[__name__].preferences.unpack_path)
+        dll_path = (context.preferences.addons[__name__].preferences.dll_path)
+        sys_path = Path(dirname(realpath(__file__)))
+
         if dll_path != "":
-            copyfile(dll_path, f"{sys_path}\\Yabber\\oo2core_6_win64.dll")
+            copyfile(Path(dll_path), sys_path / "Yabber/oo2core_6_win64.dll")
         if unpack_path == "":
             raise Exception("Unpack path not set.\nSet it in the addon configuration.")
         
         for file in self.files:
-            run(unpack_path, self.directory, file.name, self.get_textures, self.clean_up_files, self.import_rig)
+            import_mesh(
+                path = Path(self.directory),
+                file_name = file.name,
+                unpack_path = unpack_path,
+                get_textures = self.get_textures,
+                clean_up_files = self.clean_up_files,
+                import_rig = self.import_rig)
             gc.collect() # Probably not necessary, but in case Blender keeps the plugin running for whatever reason
         return {"FINISHED"}
     
@@ -98,6 +106,6 @@ def register():
     bpy.utils.register_class(UnpackPathPreference)
 
 def unregister():
+    bpy.utils.unregister_class(UnpackPathPreference)
     bpy.types.TOPBAR_MT_file_import.remove(menu_import)
     bpy.utils.unregister_class(DcxImporter)
-    bpy.utils.unregister_class(UnpackPathPreference)

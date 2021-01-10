@@ -1,5 +1,6 @@
 from os.path import isfile, join
 import subprocess, os
+from pathlib import Path
 
 class TPF:   
     """
@@ -9,7 +10,7 @@ class TPF:
 
         self.tpf_path = tpf_path
         self.textures = []
-        self.file_path = self.tpf_path[:-4]
+        self.file_path = str(self.tpf_path)[:-4]
         self.filenames = []
 
     def unpack(self):
@@ -71,11 +72,11 @@ class TPF:
         Saves textures found in this tpf file in a "_textures" 
         directory within the tpf file directory as .dds files.
         """
-        print(f"Writing {len(self.textures)} textures to {file_path}_textures\\")
-        os.makedirs(file_path + "_textures\\", exist_ok = True)
+        
+        os.makedirs(Path(str(file_path) + "_textures"), exist_ok = True)
 
         for i in range(len(self.textures)):
-            with open(file_path + "_textures\\" + self.filenames[i].rstrip() + ".dds", "wb") as file:
+            with open(Path(str(file_path) + "_textures") / (self.filenames[i].rstrip() + ".dds"), "wb") as file:
                 file.write(self.textures[i])
 
     def read_double_null_terminated_string(self):
@@ -124,11 +125,11 @@ def convert_to_png(tpf_path):
     dds_files = [f for f in os.listdir(tpf_path) if isfile(join(tpf_path, f))]
     for dds_file in dds_files:
         sys_path = os.path.dirname(os.path.realpath(__file__))
-        command = "{}\\texconv.exe {} -ft png -o {} -y".format(sys_path, tpf_path + dds_file, tpf_path)
+        command = f'"{sys_path}\\texconv.exe" "{tpf_path / dds_file}" -ft png -o "{tpf_path}" -y'
         # I haven't been able to find a way to convert the dds files that DS3 uses from within python,
         # So currently this is the most consistent method, as texconv covers many versions of dds files.
         subprocess.run(command, shell = False, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-        os.remove(tpf_path + dds_file)  
+        os.remove(tpf_path / dds_file)  
 
 def int32(data):
     return int.from_bytes(data, byteorder= "little", signed = False)
