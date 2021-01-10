@@ -5,11 +5,11 @@ A Blender plugin for importing Fromsoft DCX files. Code based heavily from the [
 ![](https://i.redd.it/rshisri0rg961.gif)
 
 ## Usage:
-* Set the path to unpack files to in the addon configuration.
-* If you intend to use this for Sekiro files, also set the path to the "oo2core_6_win64.dll" file in steamapps/common/Sekiro/.
-* Set a path for the addon to unpack the dcx files to (Preferably an empty folder).
+* In the add-on configuartion, set a path for the addon to unpack the dcx files to (Preferably an empty folder separate from the game directory).
+* If you intend to use this for Sekiro files, also set the path to the "oo2core_6_win64.dll" file. (Located in steamapps/common/Sekiro/).
+
 * File -> Import -> Compressed Fromsoftware
-* Some materials may need to be appended to their respective mesh if not automatically done so.
+* Materials may need to be appended to their respective mesh if not automatically done so.
 
 ## Import options:
 * Import Textures: Will look for a texture file in the same directory with the same name as the model dcx file, then use [DirectXTex texconv](https://github.com/microsoft/DirectXTex) to extract png textures and create blender principled shader materials in the scene.
