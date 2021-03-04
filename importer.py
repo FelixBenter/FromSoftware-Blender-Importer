@@ -16,7 +16,7 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, impo
     Args:
         path (str): Directory of the dcx file.
         file_name (str): File name of the dcx file
-        base_name (str): ID of the object.
+        base_name (Path): ID of the object.
         unpack_path (str): Where the dcx file and textures will be unpacked to.
         get_textures (bool): If to look for textures in {path} and convert them to png.
         yabber_dcx (bool): Whether to unpack with yabber.dcx.exe (true) or regular yabber.exe
@@ -54,6 +54,9 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, impo
         for x in files:
             if x.endswith(".flver") | x.endswith(".flv"):
                 flver_path = Path(join(dirpath, x))
+                if file_name.endswith(".partsbnd.dcx"):
+                    print(dirpath, files)
+                    path = Path(dirpath)
     if flver_path == None:
         raise Exception(f"Unsupported file type: {file_name}")
 
@@ -244,9 +247,10 @@ def import_textures(path, base_name, unpack_path):
     """
     Unpacks the specified tpf file into png textures
     and returns the directory where unpacked.
+    Unpacks if in dcx compression.
     
     Args:
-        path (str): Path to the directory where the dcx texture file exists.
+        path (str): Path to the directory where the texture file exists.
         base_name (str): 'ID' of the file being unpacked, consistent with model file.
         unpack_path (str): User defined unpack directory.
 
@@ -261,13 +265,16 @@ def import_textures(path, base_name, unpack_path):
     """
     sys_path = Path(dirname(realpath(__file__)))
 
-    print(f"Looking for texture file in {path}")
-    copyfile(path / f"{base_name}.texbnd.dcx", unpack_path / base_name / (f"{base_name}.texbnd.dcx"))
-
-    command = f'"{sys_path}\\Yabber\\Yabber.exe" "{unpack_path}\\{base_name}\\{base_name}.texbnd.dcx"'
-    subprocess.run(command, shell = False)
-
-    tpf_path = unpack_path / base_name / (f"{base_name}-texbnd-dcx") / "chr" / base_name / Path(f"{base_name}.tpf")
+    
+    print(path / f"{base_name}.tpf")
+    if isfile(path / f"{base_name}.tpf"): # Dumb temp fix for partsbnd case
+        tpf_path = path / f"{base_name}.tpf"
+    else:
+        copyfile(path / f"{base_name}.texbnd.dcx", unpack_path / base_name / (f"{base_name}.texbnd.dcx"))
+        command = f'"{sys_path}\\Yabber\\Yabber.exe" "{unpack_path}\\{base_name}\\{base_name}.texbnd.dcx"'
+        subprocess.run(command, shell = False)
+        tpf_path = unpack_path / base_name / (f"{base_name}-texbnd-dcx") / "chr" / base_name / Path(f"{base_name}.tpf")
+        
     TPFFile = TPF(tpf_path)
     print("Importing TPF file from " + str(tpf_path))
     TPFFile.unpack()
