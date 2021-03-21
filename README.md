@@ -5,7 +5,7 @@ A Blender plugin for importing Fromsoft DCX files. Code based heavily from the [
 ![](https://i.redd.it/rshisri0rg961.gif)
 
 ## Usage:
-* In the add-on configuartion, set a path for the addon to unpack the dcx files to (Preferably an empty folder separate from the game directory).
+* In the add-on configuration, set a path for the addon to unpack the dcx files to (Preferably an empty folder separate from the game directory).
 * If you intend to use this for Sekiro files, also set the path to the "oo2core_6_win64.dll" file. (Located in steamapps/common/Sekiro/).
 
 * File -> Import -> Compressed Fromsoftware
