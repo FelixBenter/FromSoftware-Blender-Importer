@@ -176,31 +176,31 @@ class VertexBuffer:
 
 class VertexBufferStructMember:
     class DataType(Enum):
-        # Two single-precision floats.
+        # 2 single precision floats
         FLOAT2 = 0x01
-        # Three single-precision floats.
+        # 3 single precision floats
         FLOAT3 = 0x02
-        # Four single-precision floats.
+        # 4 single precision floats
         FLOAT4 = 0x03
-        # Unknown.
+        # unknown
         BYTE4A = 0x10
-        # Four bytes
-        BONE_INDICES = 0x11
-        # Two shorts?
+        # 4 bytes
+        BYTE4B = 0x11
+        # 2 shorts
         SHORT2_TO_FLOAT2 = 0x12
-        # Four bytes.
+        # 4 bytes
         BYTE4C = 0x13
-        # Two shorts.
+        # 2 shorts
         UV = 0x15
-        # Two shorts and two shorts.
+        # 2 pairs of 2 shorts
         UV_PAIR = 0x16
-        # Four shorts, maybe unsigned?
+        # 4 shorts (unsigned?)
         SHORT_BONE_INDICES = 0x18
-        # Four shorts.
-        BONE_WEIGHTS = 0x1A
-        # Unknown.
-        SHORT4_TO_FLOAT4B = 0x2E
-        # Unknown.
+        # 4 shorts
+        SHORT4_TO_FLOAT4A = 0x1A
+        # unknown
+        SHORT4_TO_FLOAT4B = 0x2E    
+        # unknown
         BYTE4E = 0x2F
 
     class AttributeType(Enum):
@@ -232,7 +232,7 @@ class VertexBufferStructMember:
     def size(self):
         if self.data_type in {
                 self.DataType.BYTE4A,
-                self.DataType.BONE_INDICES,
+                self.DataType.BYTE4B,
                 self.DataType.SHORT2_TO_FLOAT2,
                 self.DataType.BYTE4C,
                 self.DataType.UV,
@@ -243,7 +243,7 @@ class VertexBufferStructMember:
                 self.DataType.FLOAT2,
                 self.DataType.UV_PAIR,
                 self.DataType.SHORT_BONE_INDICES,
-                self.DataType.BONE_WEIGHTS,
+                self.DataType.SHORT4_TO_FLOAT4A,
                 self.DataType.SHORT4_TO_FLOAT4B,
         }:
             return 8
@@ -260,29 +260,34 @@ class VertexBufferStructMember:
             uv_divisor = 1024.0
         offset += self.struct_offset
 
-        # UV pairs used in DS3+, UV used in DS1
-        if (self.data_type == self.DataType.UV) | (self.data_type == self.DataType.UV_PAIR): 
-            uv = struct.unpack_from("hh", buf, offset)
-            return tuple(component / uv_divisor for component in uv)
-            
+        #print(f'Type: {self.data_type} | Attr: {self.attribute_type}')
+        
         if self.data_type == self.DataType.FLOAT2:
             return tuple(struct.unpack_from("ff", buf, offset))
         if self.data_type == self.DataType.FLOAT3:
             return tuple(struct.unpack_from("fff", buf, offset))
         if self.data_type == self.DataType.FLOAT4:
             return tuple(struct.unpack_from("ffff", buf, offset))
-
-        if (self.data_type == self.DataType.BONE_INDICES):
-            return tuple(struct.unpack_from("BBBB", buf, offset))
-        if (self.data_type == self.DataType.SHORT_BONE_INDICES):
-            return tuple(struct.unpack_from("HHHH", buf, offset))
-
-        if (self.data_type == self.DataType.BONE_WEIGHTS):
-            weights = struct.unpack_from("HHHH", buf, offset)
-            return tuple(weight / 32767.0 for weight in weights)
-        if (self.data_type == self.data_type == self.DataType.BYTE4C):
+        
+        if (self.data_type == self.DataType.BYTE4A):
+            weights = struct.unpack_from("bbbb", buf, offset)
+            return tuple(weight / 127.0 for weight in weights)
+        if (self.data_type == self.DataType.BYTE4B):
+                return tuple(struct.unpack_from("BBBB", buf, offset))
+        if (self.data_type == self.DataType.BYTE4C):
             weights = struct.unpack_from("BBBB", buf, offset)
             return tuple(weight / 255.0 for weight in weights)
+        
+        if (self.data_type == self.DataType.UV): 
+            uv = struct.unpack_from("hh", buf, offset)
+            return tuple(component / uv_divisor for component in uv)
+        if (self.data_type == self.DataType.UV_PAIR):
+            uv = struct.unpack_from("hhhh", buf, offset)
+            return tuple(component / uv_divisor for component in uv)
+        
+        raise Exception(f'Unsupported type {self.data_type}')
+
+        
 
 
 class Texture:

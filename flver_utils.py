@@ -161,7 +161,6 @@ def read_bone(reader):
         bounding_box_max=bounding_box_max,
     )
 
-
 def read_mesh(reader):
     data = deque(reader.read_struct("BBBBIIIIIIIIIII"))
 
@@ -184,7 +183,6 @@ def read_mesh(reader):
 
     bone_count = default_bone_index # In DS3+ this seems to be necessary to import rigs, however it is inconsistent.
     # TODO: Find more robust method for DS3+ rigs.
-    
 
     bone_indices = reader.read_struct("I" * bone_count, bone_offset)
     index_buffer_indices = reader.read_struct("I" * index_buffer_count,
@@ -309,7 +307,6 @@ def read_vertex_buffer_structs(reader):
     reader.seek(position)
     return result
 
-
 def read_texture(reader):
     data = deque(reader.read_struct("IIffB?BBfff"))
 
@@ -380,7 +377,7 @@ def read_flver(file_name):
         assert data.popleft() >= 0  # Total face count of all meshes (I)
 
         default_vertex_index_size = data.popleft()  # B
-        assert default_vertex_index_size in {0, 16, 32}
+        assert default_vertex_index_size in {0, 8, 16, 32}
         text_encoding = flver.TextEncoding(data.popleft())  # B
         reader.text_encoding = text_encoding
         unk4A = data.popleft()  # ?
@@ -400,11 +397,11 @@ def read_flver(file_name):
         assert data.popleft() == 0  # I
         unk68 = data.popleft()  # I
         assert unk68 in {0, 1, 2, 3, 4}
-        assert data.popleft() == 0
-        assert data.popleft() == 0
-        assert data.popleft() == 0
-        assert data.popleft() == 0
-        assert data.popleft() == 0
+        assert data.popleft() == 0  # I
+        assert data.popleft() == 0  # I
+        assert data.popleft() == 0  # I
+        assert data.popleft() == 0  # I
+        assert data.popleft() == 0  # I
 
         header = flver.Header(
             endianness=endianness,

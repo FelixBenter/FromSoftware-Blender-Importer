@@ -1,4 +1,4 @@
-import bpy, bmesh, subprocess
+import bpy, bmesh, subprocess, time
 from os import listdir, mkdir, walk
 from os.path import isfile, join, dirname, realpath
 from pathlib import Path
@@ -9,7 +9,7 @@ from mathutils import Matrix, Vector
 from random import random
 from shutil import copyfile, rmtree
 
-def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, import_rig):
+def import_mesh(path, file_name, unpack_path, yabber_path, get_textures, clean_up_files, import_rig):
     """
     Converts a DCX file to flver and imports it into Blender.
     
@@ -21,8 +21,6 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, impo
         get_textures (bool): If to look for textures in {path} and convert them to png.
         yabber_dcx (bool): Whether to unpack with yabber.dcx.exe (true) or regular yabber.exe
 
-    TODO:
-        Replace all file paths with python Path type
     """
 
     print("Importing {} from {}".format(file_name, str(path)))
@@ -33,15 +31,14 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, impo
     except FileExistsError:
         pass
     tmp_path = Path(unpack_path / base_name)
-    sys_path = Path(dirname(realpath(__file__)))
     copyfile( path / file_name, tmp_path / file_name)
 
-    if  file_name.endswith(".flver.dcx"):
-        command = f'"{sys_path}\\Yabber\\Yabber.DCX.exe" "{tmp_path}\\{file_name}"'
+    if file_name.endswith(".flver.dcx"):
+        command = f'"{yabber_path}\\Yabber.DCX.exe" "{tmp_path}\\{file_name}"'
     elif file_name.endswith(".flver"):
         command = ""
     else:
-        command = f'"{sys_path}\\Yabber\\Yabber.exe" "{tmp_path}\\{file_name}"'
+        command = f'"{yabber_path}\\Yabber.exe" "{tmp_path}\\{file_name}"'
 
     p = subprocess.Popen(command, stderr = subprocess.PIPE, stdout = subprocess.PIPE)
     while True:
@@ -55,10 +52,11 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, impo
             if x.endswith(".flver") | x.endswith(".flv"):
                 flver_path = Path(join(dirpath, x))
                 if file_name.endswith(".partsbnd.dcx"):
-                    print(dirpath, files)
                     path = Path(dirpath)
     if flver_path == None:
         raise Exception(f"Unsupported file type: {file_name}")
+
+    time_start = time.perf_counter()
 
     flver_data = read_flver(flver_path)
     inflated_meshes = flver_data.inflate()
@@ -74,14 +72,14 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, impo
 
     if get_textures:
         try:
-            texture_path = import_textures(path, base_name, unpack_path)
+            texture_path = import_textures(path, base_name, unpack_path, yabber_path)
             files = [f for f in listdir(texture_path) if isfile(join(texture_path, f))]
             for file in files:
                 if "_a" in file:
                     name = file[:-6]
                     materials.append(create_material(texture_path, name))
-        except FileNotFoundError:
-            print("Texture file not found.")
+        except FileNotFoundError as fne:
+            print(f"Texture file not found {fne}")
             pass
 
     for index, (flver_mesh, inflated_mesh) in enumerate(
@@ -116,7 +114,8 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, impo
                 try:
                     obj.vertex_groups.new(name=flver_data.bones[bone_index].name)
                 except IndexError:
-                    print(f"Bone index error at {bone_index}")
+                    #print(f"Bone index error at {bone_index}")
+                    pass
 
         # Assign materials to object
         # TODO: Replace with a more robust method.
@@ -127,8 +126,6 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, impo
                     (mesh_name.lower().endswith(material.name.lower())):
                     obj.data.materials.append(material)
 
-
-
         bm = bmesh.new()
         bm.from_mesh(mesh)
 
@@ -136,8 +133,8 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, impo
         uv_layer = bm.loops.layers.uv.new()
         for face in bm.faces:
             for loop in face.loops:
-                u, v = inflated_mesh.vertices.uv[loop.vert.index]
-                loop[uv_layer].uv = (u, 1.0 - v)
+                u_0, v_0 = inflated_mesh.vertices.uv[loop.vert.index][:2]
+                loop[uv_layer].uv = (u_0, 1.0 - v_0)
             face.smooth = True
 
         if import_rig:
@@ -163,6 +160,9 @@ def import_mesh(path, file_name, unpack_path, get_textures, clean_up_files, impo
     if clean_up_files:
         print(f"Removing {tmp_path}")
         rmtree(tmp_path)
+
+    time_end = time.perf_counter()
+    print(f'FLVER time taken: {time_end - time_start}')
         
 def create_armature(name, collection, flver_data):
     """
@@ -243,7 +243,7 @@ def create_armature(name, collection, flver_data):
     bpy.ops.object.editmode_toggle() 
     return armature
 
-def import_textures(path, base_name, unpack_path):
+def import_textures(path, base_name, unpack_path, yabber_path):
     """
     Unpacks the specified tpf file into png textures
     and returns the directory where unpacked.
@@ -263,23 +263,21 @@ def import_textures(path, base_name, unpack_path):
     TODO:
         Instead of looking for a same-name texture file, use allmaterialbnd.mtdbnd.dcx to lookup directory.
     """
-    sys_path = Path(dirname(realpath(__file__)))
-
     
-    print(path / f"{base_name}.tpf")
     if isfile(path / f"{base_name}.tpf"): # Dumb temp fix for partsbnd case
         tpf_path = path / f"{base_name}.tpf"
     else:
         copyfile(path / f"{base_name}.texbnd.dcx", unpack_path / base_name / (f"{base_name}.texbnd.dcx"))
-        command = f'"{sys_path}\\Yabber\\Yabber.exe" "{unpack_path}\\{base_name}\\{base_name}.texbnd.dcx"'
+        command = f'"{yabber_path}\\Yabber.exe" "{unpack_path}\\{base_name}\\{base_name}.texbnd.dcx"'
         subprocess.run(command, shell = False)
         tpf_path = unpack_path / base_name / (f"{base_name}-texbnd-dcx") / "chr" / base_name / Path(f"{base_name}.tpf")
-        
+
     TPFFile = TPF(tpf_path)
-    print("Importing TPF file from " + str(tpf_path))
+    print(f'Importing TPF file from {str(tpf_path)}...', end = '')
     TPFFile.unpack()
     TPFFile.save_textures_to_file(file_path = unpack_path / base_name)
     convert_to_png(unpack_path / f"{base_name}_textures\\")
+    print('done')
     return unpack_path / f"{base_name}_textures\\"
     
 
@@ -294,10 +292,6 @@ def create_material(texture_path, base_name):
 
     Returns:
         Material: Blender principled shader material.
-
-    TODO:
-        Add check for file existing before creating node
-        Add emmissive support.
     """
 
     material = bpy.data.materials.new(base_name)
@@ -308,33 +302,14 @@ def create_material(texture_path, base_name):
     material.diffuse_color = (random(), random(), random(), 1.0) # Viewport display colour
     material.blend_method = 'HASHED'
 
-
     albedo_node = create_tex_image(str(texture_path / (base_name + "_a.PNG")), material)
     if albedo_node:
         node_tree.links.new(albedo_node.outputs["Color"], bsdf.inputs["Base Color"])
-        node_tree.links.new(albedo_node.outputs["Alpha"], bsdf.inputs["Alpha"]) # Only available on Blender 2.8+
+        node_tree.links.new(albedo_node.outputs["Alpha"], bsdf.inputs["Alpha"])
     
-    roughness_node = create_tex_image(str(texture_path / (base_name + "_r.PNG")), material)
-    if roughness_node:
-        roughness_node.image.colorspace_settings.name = 'Non-Color'
-        invert_rough = material.node_tree.nodes.new("ShaderNodeInvert")
-        node_tree.links.new(roughness_node.outputs["Color"], invert_rough.inputs["Color"])
-        node_tree.links.new(invert_rough.outputs["Color"], bsdf.inputs["Roughness"])
-        # Technically this is a specular reflection, not a roughness, however for Blender 2.8
-        # its a bit of a pain to put specularity in through python, so until 2.9 becomes more
-        # widespread this can probably just stay here (Looks extremely similar anyway).
-
-
-    normal_node = create_tex_image(str(texture_path / (base_name + "_n.PNG")), material)
-    if normal_node:
-        normal_node.image.colorspace_settings.name = 'Non-Color'
-        invert_norm = material.node_tree.nodes.new("ShaderNodeInvert")
-        normal_conv = material.node_tree.nodes.new("ShaderNodeNormalMap")
-        node_tree.links.new(normal_node.outputs["Color"], invert_norm.inputs["Color"])
-        node_tree.links.new(invert_norm.outputs["Color"], normal_conv.inputs["Color"])
-        node_tree.links.new(normal_conv.outputs["Normal"], bsdf.inputs["Normal"])
-        normal_conv.inputs[0].default_value = 0.2
-        # Seem to need to invert the normal map to get it to the correct coordinate system.
+    specular_node = create_tex_image(str(texture_path / (base_name + "_r.PNG")), material)
+    if specular_node:
+        node_tree.links.new(specular_node.outputs["Color"], bsdf.inputs["Specular Tint"])
 
     metalness_node = create_tex_image(str(texture_path / (base_name + "_m.PNG")), material)
     if metalness_node:
@@ -345,6 +320,22 @@ def create_material(texture_path, base_name):
     if emissive_node:
         node_tree.links.new(emissive_node.outputs["Color"], bsdf.inputs["Emission"])
 
+    normal_node = create_tex_image(str(texture_path / (base_name + "_n.PNG")), material)
+    if normal_node:
+        normal_node.image.colorspace_settings.name = 'Non-Color'
+        sep_rgb = material.node_tree.nodes.new("ShaderNodeSeparateRGB")
+        node_tree.links.new(normal_node.outputs["Color"], sep_rgb.inputs["Image"])
+        com_rgb = material.node_tree.nodes.new("ShaderNodeCombineRGB")
+        node_tree.links.new(sep_rgb.outputs[0], com_rgb.inputs[0])
+        node_tree.links.new(sep_rgb.outputs[1], com_rgb.inputs[1])
+        node_tree.links.new(sep_rgb.outputs[2], bsdf.inputs["Specular"])
+        normalise_node = material.node_tree.nodes.new("ShaderNodeVectorMath")
+        normalise_node.operation = 'NORMALIZE'
+        node_tree.links.new(com_rgb.outputs["Image"], normalise_node.inputs["Vector"])
+        normal_conv = material.node_tree.nodes.new("ShaderNodeNormalMap")
+        node_tree.links.new(normalise_node.outputs["Vector"], normal_conv.inputs["Color"])
+        node_tree.links.new(normal_conv.outputs["Normal"], bsdf.inputs["Normal"])
+        normal_conv.inputs[0].default_value = 0.5
     return material
 
 def create_tex_image(path, material):

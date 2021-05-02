@@ -1,4 +1,4 @@
-from os.path import isfile, join
+from os.path import isfile, join, splitext
 import subprocess, os
 from pathlib import Path
 
@@ -101,7 +101,6 @@ class TPF:
             print("Failed to decode {}".format(buffer))
             raise e
 
-
 def unpack_all(tpf_path):
     """
     Unpacks all tpf files in the tpf_path directory to dds files.
@@ -122,22 +121,20 @@ def convert_to_png(tpf_path):
     Args:
         Directory in which to look for .dds files.
     """
-    dds_files = [f for f in os.listdir(tpf_path) if isfile(join(tpf_path, f))]
+    dds_files = [f for f in os.listdir(tpf_path) if f.endswith('.dds')]
     for dds_file in dds_files:
+        if isfile(join(tpf_path, f'{splitext(dds_file)[0]}.png')):
+            os.remove(tpf_path / dds_file)
+            return
         sys_path = os.path.dirname(os.path.realpath(__file__))
         command = f'"{sys_path}\\texconv.exe" "{tpf_path / dds_file}" -ft png -o "{tpf_path}" -y'
         # I haven't been able to find a way to convert the dds files that DS3 uses from within python,
         # So currently this is the most consistent method, as texconv covers many versions of dds files.
         subprocess.run(command, shell = False, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-        os.remove(tpf_path / dds_file)  
+        os.remove(tpf_path / dds_file)
 
 def int32(data):
+    return int.from_bytes(data, byteorder= "little", signed = True)
+
+def uint32(data):
     return int.from_bytes(data, byteorder= "little", signed = False)
-
-
-if __name__ == "__main__":
-    tpf_path = "E:\\Projects\\test\\c3060.tpf"
-    tpf = TPF(tpf_path)
-    tpf.unpack()
-    tpf.save_textures_to_file("E:\\Projects\\test\\c3060")
-    convert_to_png(tpf.file_path + "_textures\\")
