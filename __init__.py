@@ -37,19 +37,19 @@ from bpy.props import StringProperty, CollectionProperty, BoolProperty
 class DCXBLENDER_PT_preferences(bpy.types.AddonPreferences):
     bl_idname = __name__
 
-    unpack_path = StringProperty(
+    unpack_path: StringProperty(
         default = "",
         description = "REQUIRED: The path that textures & models will be unpacked to.\nPreferably an empty folder",
         subtype = "DIR_PATH")
 
-    yabber_path = StringProperty(
+    yabber_path: StringProperty(
         default = join(dirname(realpath(__file__)), 'Yabber'),
         description = "REQUIRED: The path to the Yabber tool directory.\
             \nYabber can be downloaded from https://www.nexusmods.com/sekiro/mods/42/\
             \nPlace Yabber.exe and all adjacent files in this directory",
         subtype = "DIR_PATH")
 
-    dll_path = StringProperty(
+    dll_path: StringProperty(
         default = "",
         description = "OPTIONAL: Path to the oo2core_6_win64.dll file.\nOnly necessary for Sekiro files",
         subtype = "FILE_PATH")
