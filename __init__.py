@@ -77,22 +77,22 @@ class DCXBLENDER_PT_importer(bpy.types.Operator, ImportHelper):
     bl_label = "Compressed FromSoftware File (.dcx, .bnd)"
     bl_options = {"REGISTER", "UNDO"}
 
-    filter_glob = StringProperty(
+    filter_glob: StringProperty(
         default="*.chrbnd.dcx;*.mapbnd.dcx;*.flver.dcx;*.partsbnd.dcx;*.bnd;*.objbnd.dcx", 
         options = {"HIDDEN"})
-    get_textures = BoolProperty(
+    get_textures: BoolProperty(
         name = "Import Textures (Only DS3 & Sekiro)", 
         default = False)
-    clean_up_files = BoolProperty(
+    clean_up_files: BoolProperty(
         name = "Clean up files after import", 
         default = True)
-    import_rig = BoolProperty(
+    import_rig: BoolProperty(
         name = "Import rig",
         default = False)
-    files = CollectionProperty(
+    files: CollectionProperty(
         type=bpy.types.OperatorFileListElement, 
         options={'HIDDEN', 'SKIP_SAVE'})
-    directory = StringProperty(
+    directory: StringProperty(
         subtype='DIR_PATH')
 
     def execute(self, context):
