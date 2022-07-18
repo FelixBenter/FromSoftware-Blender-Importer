@@ -37,19 +37,19 @@ from bpy.props import StringProperty, CollectionProperty, BoolProperty
 class DCXBLENDER_PT_preferences(bpy.types.AddonPreferences):
     bl_idname = __name__
 
-    unpack_path = StringProperty(
+    unpack_path: StringProperty(
         default = "",
         description = "REQUIRED: The path that textures & models will be unpacked to.\nPreferably an empty folder",
         subtype = "DIR_PATH")
 
-    yabber_path = StringProperty(
+    yabber_path: StringProperty(
         default = join(dirname(realpath(__file__)), 'Yabber'),
         description = "REQUIRED: The path to the Yabber tool directory.\
             \nYabber can be downloaded from https://www.nexusmods.com/sekiro/mods/42/\
             \nPlace Yabber.exe and all adjacent files in this directory",
         subtype = "DIR_PATH")
 
-    dll_path = StringProperty(
+    dll_path: StringProperty(
         default = "",
         description = "OPTIONAL: Path to the oo2core_6_win64.dll file.\nOnly necessary for Sekiro files",
         subtype = "FILE_PATH")
@@ -77,22 +77,22 @@ class DCXBLENDER_PT_importer(bpy.types.Operator, ImportHelper):
     bl_label = "Compressed FromSoftware File (.dcx, .bnd)"
     bl_options = {"REGISTER", "UNDO"}
 
-    filter_glob = StringProperty(
+    filter_glob: StringProperty(
         default="*.chrbnd.dcx;*.mapbnd.dcx;*.flver.dcx;*.partsbnd.dcx;*.bnd;*.objbnd.dcx", 
         options = {"HIDDEN"})
-    get_textures = BoolProperty(
+    get_textures: BoolProperty(
         name = "Import Textures (Only DS3 & Sekiro)", 
         default = False)
-    clean_up_files = BoolProperty(
+    clean_up_files: BoolProperty(
         name = "Clean up files after import", 
         default = True)
-    import_rig = BoolProperty(
+    import_rig: BoolProperty(
         name = "Import rig",
         default = False)
-    files = CollectionProperty(
+    files: CollectionProperty(
         type=bpy.types.OperatorFileListElement, 
         options={'HIDDEN', 'SKIP_SAVE'})
-    directory = StringProperty(
+    directory: StringProperty(
         subtype='DIR_PATH')
 
     def execute(self, context):
